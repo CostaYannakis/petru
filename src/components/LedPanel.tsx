@@ -15,10 +15,13 @@ import {
  *
  * Every frame builds one array — `level`, a value per LED — and then the panel
  * is drawn from it. Nothing else touches the canvas, so whatever produces the
- * levels (a mirrored spectrum analyser, or the wordmark) gets the identical
- * physical treatment: square LEDs on a fixed pitch, smoked black when off,
- * colour banded by distance from the centre line, and a bloom pass so lit
- * cells bleed into the gaps the way real diodes do.
+ * levels (the spectrum analyser, or the wordmark) gets the identical physical
+ * treatment: square LEDs on a fixed pitch, smoked black when off, colour banded
+ * by height up the panel, and a bloom pass so lit cells bleed into the gaps the
+ * way real diodes do.
+ *
+ * Bars stand on the bottom row and grow upward, so a column's height is read
+ * off the deck like any other meter and the colour band is the scale beside it.
  *
  * Which colours those are is the one thing the panel takes from outside: a
  * theme name, resolved to a pair of pre-baked ramps in src/lib/palette.ts.
@@ -40,13 +43,15 @@ const HOLD_MS = 3_600;
 /**
  * Target centre-to-centre spacing of the diodes, in CSS pixels. This is the
  * one knob for how chunky the panel reads — raising it grows the LEDs and
- * coarsens the grid. Much past this and the mirrored analyser runs out of rows
- * to show amplitude with.
+ * coarsens the grid, and takes steps off the amplitude scale with it.
  */
 const PITCH_TARGET = 36;
 
-/** Minimum drive on every column, so the centre line never goes dark. */
-const FLOOR = 0.14;
+/**
+ * Minimum drive on every column, so the bottom row never goes dark and the
+ * panel always stands on a lit deck.
+ */
+const FLOOR = 0.08;
 
 /**
  * Idle wander. A panel with nothing coming in should look powered, not frozen,
@@ -80,8 +85,7 @@ function setup(
   let W = 0;
   let H = 0;
   let cols = 0;
-  let rows = 0; // always even, so the mirror has a clean seam
-  let half = 0;
+  let rows = 0;
   let pitch = 0; // centre-to-centre spacing of LEDs
   let ledSize = 0;
   let radius = 0;
@@ -173,9 +177,10 @@ function setup(
     }
 
     // The wordmark is coloured across its own bounding rows rather than the
-    // panel's centre line, so it uses the whole band — the tip colour along the
-    // cap line down to the spine colour at the baseline — instead of sitting in
-    // the dim rows. Measured from the raster, not from font metrics.
+    // panel's full height, so it uses the whole band — the top colour along the
+    // cap line down to the bottom colour at the baseline — instead of sitting
+    // in whichever rows it happens to occupy. Measured from the raster, not
+    // from font metrics.
     wordTop = rows;
     wordBottom = 0;
     for (let r = 0; r < rows; r++) {
@@ -208,10 +213,9 @@ function setup(
     glow.width = canvas.width;
     glow.height = canvas.height;
 
-    // Chunky, square, and an even row count so the mirror has a clean seam.
+    // Chunky and square. Every row is a step on the amplitude scale now, so
+    // there is no parity to keep — the count is whatever the height affords.
     rows = clamp(Math.round(H / PITCH_TARGET), 6, 30);
-    if (rows % 2) rows += 1;
-    half = rows / 2;
 
     pitch = H / rows;
     cols = Math.max(4, Math.floor(W / pitch));
@@ -246,8 +250,8 @@ function setup(
     const kick = Math.exp(-phase * 6.5);
 
     // Slow swell so the panel breathes across a bar or two. Shallow, because
-    // with only a handful of rows per side a deep swell reads as the panel
-    // switching off rather than getting quieter.
+    // with only a dozen rows a deep swell reads as the panel switching off
+    // rather than getting quieter.
     const swell = 0.85 + 0.15 * Math.sin(t * 0.31);
 
     for (let c = 0; c < cols; c++) {
@@ -308,9 +312,9 @@ function setup(
         if (wander > raw) raw = wander;
       }
 
-      // A grid this coarse only has a handful of steps per side, so a raw 0
-      // reads as a dead column rather than a quiet one. Lift everything onto
-      // a floor: the centre line stays lit, the way it does on real hardware.
+      // A grid this coarse only has a dozen steps, so a raw 0 reads as a dead
+      // column rather than a quiet one. Lift everything onto a floor: the
+      // bottom row stays lit, the way it does on real hardware.
       const target = FLOOR + (1 - FLOOR) * raw;
 
       const k = target > bands[c] ? dt * 24 : dt * 5.5;
@@ -343,7 +347,7 @@ function setup(
     const wipe = wordWipe(ms);
     const edge = wipe * cols;
 
-    const span = half > 1 ? half - 1 : 1;
+    const span = rows > 1 ? rows - 1 : 1;
 
     for (let c = 0; c < cols; c++) {
       const showWord = c < edge;
@@ -354,33 +358,28 @@ function setup(
         const rise = wordBottom > wordTop ? wordBottom - wordTop : 1;
         for (let r = 0; r < rows; r++) {
           const idx = r * cols + c;
-          const d = r < half ? half - 1 - r : r - half;
           if (word[idx]) {
             level[idx] = 1;
             tone[idx] = clamp((wordBottom - r) / rise, 0, 1);
           } else if (hot) {
             level[idx] = 0.34;
-            tone[idx] = 1; // the write head reads as a seam at the tip colour
+            tone[idx] = 1; // the write head reads as a seam at the top colour
           } else {
             level[idx] = 0;
-            tone[idx] = d / span;
+            tone[idx] = (rows - 1 - r) / span;
           }
         }
         continue;
       }
 
-      const lit = Math.round(bands[c] * half);
-      for (let d = 0; d < half; d++) {
-        // Mirrored around the seam: d is distance from the centre line.
-        const up = (half - 1 - d) * cols + c;
-        const down = (half + d) * cols + c;
-        // The outermost lit LED is the brightest thing in the column.
-        const v = d < lit ? (d === lit - 1 ? 1 : 0.82) : 0;
-        const band = d / span;
-        level[up] = v;
-        level[down] = v;
-        tone[up] = band;
-        tone[down] = band;
+      // h is height above the bottom row, which is both how far the bar has
+      // climbed and where its LEDs sit on the colour band.
+      const lit = Math.round(bands[c] * rows);
+      for (let h = 0; h < rows; h++) {
+        const idx = (rows - 1 - h) * cols + c;
+        // The topmost lit LED is the brightest thing in the column.
+        level[idx] = h < lit ? (h === lit - 1 ? 1 : 0.82) : 0;
+        tone[idx] = h / span;
       }
     }
   }

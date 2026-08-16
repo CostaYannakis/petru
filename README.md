@@ -4,59 +4,64 @@ A dot-matrix LED audio visualiser for the browser, built to be looked at on an
 iPhone held sideways.
 
 It's a software version of the panel in a Petru Design *Now Playing* display:
-chunky square diodes on a fixed pitch, black when off, and colour banded by each
-row's distance from the centre line. The panel runs a mirrored spectrum
-analyser — off its own idle animation, or off the microphone once you turn it
-on.
+chunky square diodes on a fixed pitch, black when off, and colour banded by how
+high each row sits. Bars stand on the bottom row and grow upward, off the
+panel's own idle animation or off the microphone once you turn it on.
 
 ## The palette
 
 Everything on screen is one ramp. An LED is either off — smoked black, still
-faintly visible so the grid itself reads — or lit somewhere along it, by how far
-its row sits from the centre line.
+faintly visible so the grid itself reads — or lit somewhere along it, at the
+point matching its height up the panel. A column's top LED is therefore both its
+level and its colour: the band is the scale printed beside the meter.
 
-There are four ramps, all in `src/lib/palette.ts`:
+There are five ramps, all in `src/lib/palette.ts`, each written bottom to top:
 
-| Row from the centre | `ice` ← default | `meter`      | `ember`       | `petru`       |
-| ------------------- | --------------- | ------------ | ------------- | ------------- |
-| 0 — the spine       | deep petrol     | green        | ember         | ember         |
-| 1                   | teal blue       | green        | ember         | amber         |
-| 2                   | cyan            | yellow green | amber         | orange        |
-| 3                   | bright aqua     | yellow       | orange        | golden yellow |
-| 4                   | pale ice        | amber        | golden yellow | white         |
-| 5 — the tip         | ice white       | red          | golden yellow | blue          |
+| Ramp             | Bottom → top                                                       |
+| ---------------- | ------------------------------------------------------------------ |
+| `neon` ← default | blue · violet · hot pink · red · orange · amber · yellow · white · ice blue |
+| `ice`            | deep petrol · teal · cyan · aqua · pale ice · ice white             |
+| `meter`          | green · yellow green · yellow · amber · red                        |
+| `ember`          | deep ember · ember · amber · orange · golden yellow                |
+| `petru`          | ember · amber · orange · golden yellow · white · blue              |
 
-**`ice`** is what the black bakelite case wants. Gloss black throws back a
-brown-grey sheen that sits right on top of ember and amber and takes the life
-out of them; it leaves cyan alone, and the ice-white tips read as reflections
-off the case rather than fighting them. The travel along the ramp is saturation
-and luminance rather than hue, which is what stops a one-hue ramp reading as a
-single colour dimmed six ways.
+**`neon`** is the default. It works because it's a *loop* rather than a line —
+both ends are blue, so a quiet panel and a pinned one are the same family and
+the whole thing reads as one object instead of a gradient that ran out. The hot
+half sits in the middle where the bars actually live; the ice blue only appears
+on peaks, which is what makes a peak look like an event. Against gloss black the
+cool ends hold their colour and the case's sheen lands on the warm middle, so it
+reads as part of the ramp rather than on top of it.
 
-**`meter`** is the other one that suits a black box: the VU scale off the front
-of a seventies deck. Green at rest, yellow as it works, red only where the peaks
-reach — you can read how loud the room is from across it.
+**`ice`** is the cool one: gloss black throws back a brown-grey sheen that sits
+right on top of ember and amber and takes the life out of them, but leaves cyan
+alone. Its travel is saturation and luminance rather than hue.
+
+**`meter`** is the VU scale off the front of a seventies deck — green at rest,
+yellow as it works, red only where the peaks reach. Bottom-up bars make it
+literal: it *is* a meter.
 
 **`ember`** and **`petru`** are the original warm ramps, kept. `petru` is the
-one the hardware does, warm core out to white and blue tips.
+one the hardware does, warm below and white and blue on top.
 
 ### Switching
 
 `DEFAULT_THEME` in `palette.ts` is what the device ships as. To compare them
 without a rebuild:
 
-- `?theme=ice` · `?theme=meter` · `?theme=ember` · `?theme=petru` — bookmark two
-  URLs and flick between them on the actual hardware.
+- `?theme=neon` · `?theme=ice` · `?theme=meter` · `?theme=ember` ·
+  `?theme=petru` — bookmark two URLs and flick between them on the actual
+  hardware.
 - Press **`t`** to cycle, which is quicker at a desk.
 
 Nothing is persisted; the URL is the whole state, so whatever you're looking at
 is something you can send to someone else.
 
-The stops are spaced for a *coarse* grid. With only six rows per side each row
-has to land on a visibly different colour, or two rows share one and the ramp
-reads as four colours instead of six. `petru` has an extra stop between white
-and blue for the same reason, so panels with more rows don't interpolate through
-grey.
+The stops are spaced for a *coarse* grid. A dozen rows is all a phone gives, so
+each one has to land on a visibly different colour or two rows share one and the
+ramp reads as fewer colours than it has. Both `neon` and `petru` carry an extra
+stop on the way from white to blue, so panels with more rows don't interpolate
+through grey.
 
 The bands live in `src/lib/palette.ts`; the DOM chrome — the diffuser sheen, the
 orientation gate — is themed alongside them in `src/app/globals.css` under a
@@ -87,8 +92,9 @@ Two sources can fill those arrays:
 
 Both feed the same ballistics — snap up, fall away slowly — which is what makes
 the microphone read as the same instrument as the idle animation. Both also sit
-on a floor, because a grid this coarse has few steps per side and a raw zero
-reads as a broken column rather than a quiet one.
+on a floor, because a grid this coarse has few steps and a raw zero reads as a
+broken column rather than a quiet one. The floor is what keeps the bottom row
+lit right across the panel, so the bars always stand on a deck.
 
 ### Quiet
 
@@ -127,9 +133,8 @@ Flip `SHOW_WORDMARK` in `LedPanel.tsx` to bring the cycle back.
 
 `PITCH_TARGET` in `LedPanel.tsx` is the one knob for how chunky the panel
 reads — it's the target centre-to-centre spacing of the diodes in CSS pixels.
-Raising it grows the LEDs and coarsens the grid. There's a ceiling on it: the
-analyser is mirrored, so the rows have to be split in half, and much past the
-current value there aren't enough left to show amplitude with.
+Raising it grows the LEDs and coarsens the grid, and takes steps off the
+amplitude scale with it, since every row is now one step.
 
 `DEFAULT_THEME` in `palette.ts` is the other one — see [the palette](#the-palette).
 

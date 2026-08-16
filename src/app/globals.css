@@ -5,23 +5,32 @@
  * point on the current theme's band, named by where it sits on it rather than
  * by hue, so the tokens survive a theme that isn't warm.
  *
- * These are the defaults — the `ice` theme, matching DEFAULT_THEME in
+ * These are the defaults — the `neon` theme, matching DEFAULT_THEME in
  * src/lib/palette.ts. The blocks below override them per `<html data-theme>`,
  * which src/lib/theme.ts sets. The canvas reads its own band from palette.ts,
  * so there are no colour values duplicated between here and there.
  */
 @theme {
   --color-black: #000000;
+  --color-dim: #2a4efa;
+  --color-mid: #ee30ac;
+  --color-hot: #fc6e14;
+  --color-peak: #5cc6ff;
+
+  /* The diffuser sheen, as an rgb triple so it can be used at low alpha. */
+  --sheen: 92 198 255;
+
+  --font-mono:
+    ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+}
+
+/* Petrol to ice white. */
+[data-theme="ice"] {
   --color-dim: #0d4a63;
   --color-mid: #1596b4;
   --color-hot: #35d2dc;
   --color-peak: #cdf6ff;
-
-  /* The diffuser sheen, as an rgb triple so it can be used at low alpha. */
   --sheen: 150 240 246;
-
-  --font-mono:
-    ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
 }
 
 /* Green to red: a VU scale. */

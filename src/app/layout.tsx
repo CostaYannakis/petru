@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "PETRU",
   description:
-    "PETRU, visualised — a dot-matrix LED audio visualiser on smoked black, banded petrol to ice white. Built for a phone held sideways.",
+    "PETRU, visualised — a dot-matrix LED audio visualiser on smoked black, banded blue through hot pink and orange to ice blue. Built for a phone held sideways.",
   applicationName: "PETRU",
   appleWebApp: {
     capable: true,
@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "PETRU",
     description:
-      "A dot-matrix LED audio visualiser on smoked black, banded petrol to ice white.",
+      "A dot-matrix LED audio visualiser on smoked black, banded blue through hot pink and orange to ice blue.",
     type: "website",
   },
 };
