@@ -1,0 +1,82 @@
+@import "tailwindcss";
+
+/*
+ * One palette, shared by the panel engine (src/lib/palette.ts) and the DOM
+ * chrome. Smoked black is the unlit LED; everything else is a point on the
+ * ember -> amber -> orange -> golden yellow band.
+ */
+@theme {
+  --color-smoked: #070605;
+  --color-led-off: #191009;
+  --color-ember: #8a2b07;
+  --color-amber: #d9690d;
+  --color-orange: #f78a14;
+  --color-golden: #ffc63c;
+
+  --font-mono:
+    ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+}
+
+html,
+body {
+  height: 100%;
+  background: var(--color-smoked);
+  color: var(--color-amber);
+}
+
+body {
+  /* Landscape phone: never scroll, never rubber-band, never select. */
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
+  -webkit-text-size-adjust: 100%;
+}
+
+::selection {
+  background: var(--color-orange);
+  color: var(--color-smoked);
+}
+
+/*
+ * The diffuser. A physical panel sits behind acrylic, so the corners fall off
+ * and the whole surface catches a soft sheen from above.
+ */
+.diffuser::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(
+      to bottom,
+      rgba(255, 198, 60, 0.05) 0%,
+      rgba(255, 198, 60, 0) 38%
+    ),
+    radial-gradient(
+      130% 100% at 50% 45%,
+      rgba(7, 6, 5, 0) 52%,
+      rgba(7, 6, 5, 0.5) 84%,
+      rgba(7, 6, 5, 0.86) 100%
+    );
+}
+
+@keyframes blink-led {
+  0%,
+  100% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.blink-led {
+  animation: blink-led 2s steps(2, jump-none) infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .blink-led {
+    animation: none;
+    opacity: 0.85;
+  }
+}
