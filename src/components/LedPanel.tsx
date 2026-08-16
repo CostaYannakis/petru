@@ -2,7 +2,13 @@
 
 import { useEffect, useRef, type RefObject } from "react";
 import type { MicSource } from "@/lib/mic";
-import { LED_BODY, LED_FULL, LED_OFF, PANEL_BLACK } from "@/lib/palette";
+import {
+  DEFAULT_THEME,
+  PANEL_BLACK,
+  ramp,
+  type Ramp,
+  type ThemeName,
+} from "@/lib/palette";
 
 /**
  * A dot-matrix LED panel, the kind bolted into an audio visualiser.
@@ -13,6 +19,9 @@ import { LED_BODY, LED_FULL, LED_OFF, PANEL_BLACK } from "@/lib/palette";
  * physical treatment: square LEDs on a fixed pitch, smoked black when off,
  * colour banded by distance from the centre line, and a bloom pass so lit
  * cells bleed into the gaps the way real diodes do.
+ *
+ * Which colours those are is the one thing the panel takes from outside: a
+ * theme name, resolved to a pair of pre-baked ramps in src/lib/palette.ts.
  */
 
 const WORD = "PETRU";
@@ -58,6 +67,7 @@ function setup(
   canvas: HTMLCanvasElement,
   ctx: CanvasRenderingContext2D,
   micRef: RefObject<MicSource | null>,
+  colours: Ramp,
 ) {
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -163,9 +173,9 @@ function setup(
     }
 
     // The wordmark is coloured across its own bounding rows rather than the
-    // panel's centre line, so it uses the whole band — golden yellow along the
-    // cap line down to ember at the baseline — instead of sitting in the ember
-    // rows. Measured from the raster, so it doesn't depend on font metrics.
+    // panel's centre line, so it uses the whole band — the tip colour along the
+    // cap line down to the spine colour at the baseline — instead of sitting in
+    // the dim rows. Measured from the raster, not from font metrics.
     wordTop = rows;
     wordBottom = 0;
     for (let r = 0; r < rows; r++) {
@@ -259,8 +269,8 @@ function setup(
 
       const low = kick * Math.pow(1 - f, 2.6) * 0.45;
 
-      // Gain is set so a typical bar reaches the amber/orange rows and only
-      // peaks touch golden yellow — the whole band in play, nothing pinned.
+      // Gain is set so a typical bar reaches the middle of the band and only
+      // peaks touch the tip colour — all of it in play, nothing pinned.
       targets[c] = clamp((tilt * n * 1.5 + low) * swell, 0, 1);
     }
   }
@@ -350,7 +360,7 @@ function setup(
             tone[idx] = clamp((wordBottom - r) / rise, 0, 1);
           } else if (hot) {
             level[idx] = 0.34;
-            tone[idx] = 1; // the write head reads as a golden seam
+            tone[idx] = 1; // the write head reads as a seam at the tip colour
           } else {
             level[idx] = 0;
             tone[idx] = d / span;
@@ -398,10 +408,10 @@ function setup(
         const x = originX + c * pitch + inset;
 
         const bandIdx = (tone[idx] * 255) | 0;
-        const full = LED_FULL[bandIdx];
-        const body = LED_BODY[bandIdx];
+        const full = colours.full[bandIdx];
+        const body = colours.body[bandIdx];
 
-        ctx.fillStyle = v <= 0 ? LED_OFF : v >= 1 ? full : body;
+        ctx.fillStyle = v <= 0 ? colours.off : v >= 1 ? full : body;
 
         ctx.beginPath();
         if (canRound) {
@@ -481,8 +491,10 @@ function setup(
 
 export default function LedPanel({
   micRef,
+  theme = DEFAULT_THEME,
 }: {
   micRef: RefObject<MicSource | null>;
+  theme?: ThemeName;
 }) {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -495,8 +507,10 @@ export default function LedPanel({
     const ctx = canvas.getContext("2d", { alpha: false });
     if (!ctx) return;
 
-    return setup(host, canvas, ctx, micRef);
-  }, [micRef]);
+    // A theme change tears the panel down and rebuilds it. The ramps are
+    // baked once per theme, so the only real cost is a lost frame.
+    return setup(host, canvas, ctx, micRef, ramp(theme));
+  }, [micRef, theme]);
 
   return (
     <div ref={hostRef} className="absolute inset-0 overflow-hidden">

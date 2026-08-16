@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import LedPanel from "@/components/LedPanel";
 import { startMic, type MicSource } from "@/lib/mic";
+import { useTheme } from "@/lib/theme";
 
 /**
  * Owns the microphone so the panel doesn't have to. The panel reads whatever
@@ -19,6 +20,7 @@ export default function Visualiser() {
   const micRef = useRef<MicSource | null>(null);
   const [live, setLive] = useState(false);
   const busy = useRef(false);
+  const { theme } = useTheme();
 
   useEffect(() => {
     return () => {
@@ -52,7 +54,7 @@ export default function Visualiser() {
 
   return (
     <>
-      <LedPanel micRef={micRef} />
+      <LedPanel micRef={micRef} theme={theme} />
 
       <button
         type="button"

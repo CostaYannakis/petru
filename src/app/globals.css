@@ -1,27 +1,61 @@
 @import "tailwindcss";
 
 /*
- * One palette, shared by the panel engine (src/lib/palette.ts) and the DOM
- * chrome. The ground is black; every lit thing is a point on the
- * ember -> amber -> orange -> golden yellow band.
+ * The DOM half of the palette. The ground is always black; everything lit is a
+ * point on the current theme's band, named by where it sits on it rather than
+ * by hue, so the tokens survive a theme that isn't warm.
+ *
+ * These are the defaults — the `ice` theme, matching DEFAULT_THEME in
+ * src/lib/palette.ts. The blocks below override them per `<html data-theme>`,
+ * which src/lib/theme.ts sets. The canvas reads its own band from palette.ts,
+ * so there are no colour values duplicated between here and there.
  */
 @theme {
   --color-black: #000000;
-  --color-led-off: #0b0704;
-  --color-ember: #8a2b07;
-  --color-amber: #d9690d;
-  --color-orange: #f78a14;
-  --color-golden: #ffc63c;
+  --color-dim: #0d4a63;
+  --color-mid: #1596b4;
+  --color-hot: #35d2dc;
+  --color-peak: #cdf6ff;
+
+  /* The diffuser sheen, as an rgb triple so it can be used at low alpha. */
+  --sheen: 150 240 246;
 
   --font-mono:
     ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
+}
+
+/* Green to red: a VU scale. */
+[data-theme="meter"] {
+  --color-dim: #0d5a2c;
+  --color-mid: #17963e;
+  --color-hot: #e2ca2a;
+  --color-peak: #f0841e;
+  --sheen: 226 202 42;
+}
+
+/* Ember to golden yellow. */
+[data-theme="ember"] {
+  --color-dim: #8a2b07;
+  --color-mid: #d9690d;
+  --color-hot: #f78a14;
+  --color-peak: #ffc63c;
+  --sheen: 255 198 60;
+}
+
+/* Warm core, cool tips. */
+[data-theme="petru"] {
+  --color-dim: #8a2b07;
+  --color-mid: #d9690d;
+  --color-hot: #f78a14;
+  --color-peak: #b0d2ff;
+  --sheen: 176 210 255;
 }
 
 html,
 body {
   height: 100%;
   background: #000;
-  color: var(--color-amber);
+  color: var(--color-mid);
 }
 
 body {
@@ -33,7 +67,7 @@ body {
 }
 
 ::selection {
-  background: var(--color-orange);
+  background: var(--color-hot);
   color: #000;
 }
 
@@ -49,8 +83,8 @@ body {
   background:
     linear-gradient(
       to bottom,
-      rgba(255, 198, 60, 0.04) 0%,
-      rgba(255, 198, 60, 0) 36%
+      rgb(var(--sheen) / 0.04) 0%,
+      rgb(var(--sheen) / 0) 36%
     ),
     radial-gradient(
       130% 100% at 50% 45%,

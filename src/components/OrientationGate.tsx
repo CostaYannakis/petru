@@ -29,11 +29,11 @@ export default function OrientationGate() {
       aria-label="Rotate your phone to landscape"
     >
       <div className="relative">
-        <div className="h-16 w-28 rounded-[10px] border border-ember shadow-[0_0_28px_-6px_var(--color-orange)]" />
+        <div className="h-16 w-28 rounded-[10px] border border-dim shadow-[0_0_28px_-6px_var(--color-hot)]" />
         <svg
           viewBox="0 0 24 24"
           fill="none"
-          className="pulse absolute -right-9 -top-3 h-7 w-7 text-golden"
+          className="pulse absolute -right-9 -top-3 h-7 w-7 text-peak"
           aria-hidden
         >
           <path
