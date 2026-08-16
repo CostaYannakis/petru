@@ -11,17 +11,22 @@
 type Stop = [pos: number, rgb: [number, number, number]];
 
 /** Behind the panel, and the gaps between LEDs. */
-export const PANEL_BLACK = "#070605";
+export const PANEL_BLACK = "#000000";
 
-/** An LED with no signal. Smoked, not invisible — the grid should read. */
-export const LED_OFF = "#191009";
+/** An LED with no signal. Smoked — just enough to keep the grid readable. */
+export const LED_OFF = "#0b0704";
 
+/**
+ * Stops are spaced so that on a coarse panel — six rows per side — each row
+ * lands on a visibly different colour, and all four of ember/amber/orange/
+ * golden get a row rather than golden only ever reaching the top one.
+ */
 const BAND: Stop[] = [
   [0.0, [116, 28, 5]], // deep ember, at the centre spine
-  [0.35, [163, 50, 8]], // ember
-  [0.6, [212, 94, 12]], // amber
-  [0.8, [246, 134, 18]], // orange
-  [0.93, [255, 190, 52]], // golden yellow
+  [0.22, [163, 50, 8]], // ember
+  [0.45, [212, 94, 12]], // amber
+  [0.68, [246, 134, 18]], // orange
+  [0.88, [255, 190, 52]], // golden yellow
   [1.0, [255, 214, 110]], // golden yellow, at the tip
 ];
 
@@ -65,7 +70,7 @@ export const LED_BODY = buildLut(BAND, 0.78);
 
 /** CSS-side tokens, kept in step with the ramp above. */
 export const CSS = {
-  smoked: PANEL_BLACK,
+  black: PANEL_BLACK,
   ember: "#8a2b07",
   amber: "#d9690d",
   orange: "#f78a14",

@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
+import type { MicSource } from "@/lib/mic";
 import { LED_BODY, LED_FULL, LED_OFF, PANEL_BLACK } from "@/lib/palette";
 
 /**
@@ -16,10 +17,27 @@ import { LED_BODY, LED_FULL, LED_OFF, PANEL_BLACK } from "@/lib/palette";
 
 const WORD = "PETRU";
 
+/**
+ * The wordmark is parked: the panel runs pure spectrum, no text. Set this back
+ * to true to restore the analyser -> PETRU -> analyser cycle.
+ */
+const SHOW_WORDMARK = false;
+
 // One full cycle of the panel: analyser, wipe to the wordmark, hold, wipe back.
 const SPECTRUM_MS = 11_000;
 const WIPE_MS = 900;
 const HOLD_MS = 3_600;
+
+/**
+ * Target centre-to-centre spacing of the diodes, in CSS pixels. This is the
+ * one knob for how chunky the panel reads — raising it grows the LEDs and
+ * coarsens the grid. Much past this and the mirrored analyser runs out of rows
+ * to show amplitude with.
+ */
+const PITCH_TARGET = 36;
+
+/** Minimum drive on every column, so the centre line never goes dark. */
+const FLOOR = 0.14;
 
 const SANS = `ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif`;
 
@@ -31,6 +49,7 @@ function setup(
   host: HTMLDivElement,
   canvas: HTMLCanvasElement,
   ctx: CanvasRenderingContext2D,
+  micRef: RefObject<MicSource | null>,
 ) {
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
@@ -54,6 +73,7 @@ function setup(
 
   // --- signal -------------------------------------------------------------
   let bands = new Float32Array(0); // smoothed amplitude per column, 0..1
+  let targets = new Float32Array(0); // this frame's raw amplitude per column
   let seeds = new Float32Array(0); // fixed per-column phase, so neighbours differ
   let word = new Uint8Array(0); // wordmark, 1 bit per LED
   let wordTop = 0; // the wordmark's cap row
@@ -170,9 +190,8 @@ function setup(
     glow.width = canvas.width;
     glow.height = canvas.height;
 
-    // Chunky, square, and an even row count. ~20 rows on a phone in landscape
-    // keeps the LEDs big enough to read as discrete diodes.
-    rows = clamp(Math.round(H / 19), 12, 30);
+    // Chunky, square, and an even row count so the mirror has a clean seam.
+    rows = clamp(Math.round(H / PITCH_TARGET), 6, 30);
     if (rows % 2) rows += 1;
     half = rows / 2;
 
@@ -187,6 +206,7 @@ function setup(
     originY = (H - rows * pitch) / 2;
 
     bands = new Float32Array(cols);
+    targets = new Float32Array(cols);
     level = new Float32Array(cols * rows);
     tone = new Float32Array(cols * rows);
 
@@ -197,17 +217,20 @@ function setup(
   }
 
   /**
-   * A synthetic spectrum. No microphone — nothing here asks the viewer for
-   * permission — but shaped like one: bass on the left, a tilted noise floor,
-   * and a kick that ducks the low bands on the beat.
+   * The idle spectrum, used until someone turns the microphone on. Shaped like
+   * the real thing: bass on the left, a tilted noise floor, and a kick on the
+   * beat — but entirely synthetic, so the panel is alive on load without the
+   * page having asked the viewer for anything.
    */
-  function drive(dt: number) {
+  function fillSynthetic() {
     const beat = 0.5; // 120bpm
     const phase = (t % beat) / beat;
     const kick = Math.exp(-phase * 6.5);
 
-    // Slow swell so the panel breathes across a bar or two.
-    const swell = 0.72 + 0.28 * Math.sin(t * 0.31);
+    // Slow swell so the panel breathes across a bar or two. Shallow, because
+    // with only a handful of rows per side a deep swell reads as the panel
+    // switching off rather than getting quieter.
+    const swell = 0.85 + 0.15 * Math.sin(t * 0.31);
 
     for (let c = 0; c < cols; c++) {
       const f = cols > 1 ? c / (cols - 1) : 0;
@@ -230,9 +253,27 @@ function setup(
 
       // Gain is set so a typical bar reaches the amber/orange rows and only
       // peaks touch golden yellow — the whole band in play, nothing pinned.
-      const target = clamp((tilt * n * 1.3 + low) * swell, 0, 1);
+      targets[c] = clamp((tilt * n * 1.5 + low) * swell, 0, 1);
+    }
+  }
 
-      // Analyser ballistics: snap up, fall away slowly.
+  /**
+   * Take this frame's raw levels from whichever source is live, then apply the
+   * ballistics both share: snap up fast, fall away slowly. Doing the smoothing
+   * here rather than per-source is what makes the microphone feel like the
+   * same instrument as the idle animation.
+   */
+  function drive(dt: number) {
+    const mic = micRef.current;
+    if (mic) mic.read(targets);
+    else fillSynthetic();
+
+    for (let c = 0; c < cols; c++) {
+      // A grid this coarse only has a handful of steps per side, so a raw 0
+      // reads as a dead column rather than a quiet one. Lift everything onto
+      // a floor: the centre line stays lit, the way it does on real hardware.
+      const target = FLOOR + (1 - FLOOR) * targets[c];
+
       const k = target > bands[c] ? dt * 24 : dt * 5.5;
       bands[c] += (target - bands[c]) * Math.min(1, k);
     }
@@ -240,6 +281,8 @@ function setup(
 
   /** Where in the cycle we are, and how far the wordmark has wiped across. */
   function wordWipe(ms: number) {
+    if (!SHOW_WORDMARK) return 0;
+
     const cycle = SPECTRUM_MS + WIPE_MS + HOLD_MS + WIPE_MS;
     const p = ms % cycle;
 
@@ -400,7 +443,11 @@ function setup(
   };
 }
 
-export default function LedPanel() {
+export default function LedPanel({
+  micRef,
+}: {
+  micRef: RefObject<MicSource | null>;
+}) {
   const hostRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -412,8 +459,8 @@ export default function LedPanel() {
     const ctx = canvas.getContext("2d", { alpha: false });
     if (!ctx) return;
 
-    return setup(host, canvas, ctx);
-  }, []);
+    return setup(host, canvas, ctx, micRef);
+  }, [micRef]);
 
   return (
     <div ref={hostRef} className="absolute inset-0 overflow-hidden">

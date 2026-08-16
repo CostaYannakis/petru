@@ -2,12 +2,12 @@
 
 /*
  * One palette, shared by the panel engine (src/lib/palette.ts) and the DOM
- * chrome. Smoked black is the unlit LED; everything else is a point on the
+ * chrome. The ground is black; every lit thing is a point on the
  * ember -> amber -> orange -> golden yellow band.
  */
 @theme {
-  --color-smoked: #070605;
-  --color-led-off: #191009;
+  --color-black: #000000;
+  --color-led-off: #0b0704;
   --color-ember: #8a2b07;
   --color-amber: #d9690d;
   --color-orange: #f78a14;
@@ -20,7 +20,7 @@
 html,
 body {
   height: 100%;
-  background: var(--color-smoked);
+  background: #000;
   color: var(--color-amber);
 }
 
@@ -34,12 +34,12 @@ body {
 
 ::selection {
   background: var(--color-orange);
-  color: var(--color-smoked);
+  color: #000;
 }
 
 /*
  * The diffuser. A physical panel sits behind acrylic, so the corners fall off
- * and the whole surface catches a soft sheen from above.
+ * and the surface catches a faint sheen from above.
  */
 .diffuser::after {
   content: "";
@@ -49,33 +49,33 @@ body {
   background:
     linear-gradient(
       to bottom,
-      rgba(255, 198, 60, 0.05) 0%,
-      rgba(255, 198, 60, 0) 38%
+      rgba(255, 198, 60, 0.04) 0%,
+      rgba(255, 198, 60, 0) 36%
     ),
     radial-gradient(
       130% 100% at 50% 45%,
-      rgba(7, 6, 5, 0) 52%,
-      rgba(7, 6, 5, 0.5) 84%,
-      rgba(7, 6, 5, 0.86) 100%
+      rgba(0, 0, 0, 0) 50%,
+      rgba(0, 0, 0, 0.55) 84%,
+      rgba(0, 0, 0, 0.9) 100%
     );
 }
 
-@keyframes blink-led {
+@keyframes pulse {
   0%,
   100% {
-    opacity: 0.3;
+    opacity: 0.35;
   }
   50% {
     opacity: 1;
   }
 }
 
-.blink-led {
-  animation: blink-led 2s steps(2, jump-none) infinite;
+.pulse {
+  animation: pulse 2s ease-in-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .blink-led {
+  .pulse {
     animation: none;
     opacity: 0.85;
   }
