@@ -39,6 +39,14 @@ const PITCH_TARGET = 36;
 /** Minimum drive on every column, so the centre line never goes dark. */
 const FLOOR = 0.14;
 
+/**
+ * Idle wander. A panel with nothing coming in should look powered, not frozen,
+ * so a slow per-column drift fills in underneath — fading out as soon as there
+ * is real signal above `QUIET_AT` to show instead.
+ */
+const SHIMMER = 0.5;
+const QUIET_AT = 0.35;
+
 const SANS = `ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif`;
 
 function clamp(v: number, lo: number, hi: number) {
@@ -268,14 +276,42 @@ function setup(
     if (mic) mic.read(targets);
     else fillSynthetic();
 
+    // How much real signal is on the panel right now. In a silent room the
+    // gate leaves this at zero and the wander below takes over entirely.
+    let peak = 0;
+    for (let c = 0; c < cols; c++) if (targets[c] > peak) peak = targets[c];
+    const quiet = clamp(1 - peak / QUIET_AT, 0, 1);
+
     for (let c = 0; c < cols; c++) {
+      let raw = targets[c];
+
+      if (quiet > 0) {
+        // Three incommensurate rates off a fixed per-column seed: it never
+        // repeats, and neighbouring columns drift independently.
+        const s = seeds[c];
+        let n = Math.sin(t * 1.1 + s) * 0.55;
+        n += Math.sin(t * 2.2 + s * 2.1) * 0.3;
+        n += Math.sin(t * 0.55 + s * 0.7) * 0.4;
+        n = (n / 1.25) * 0.5 + 0.5;
+
+        const wander = n * SHIMMER * quiet;
+        if (wander > raw) raw = wander;
+      }
+
       // A grid this coarse only has a handful of steps per side, so a raw 0
       // reads as a dead column rather than a quiet one. Lift everything onto
       // a floor: the centre line stays lit, the way it does on real hardware.
-      const target = FLOOR + (1 - FLOOR) * targets[c];
+      const target = FLOOR + (1 - FLOOR) * raw;
 
       const k = target > bands[c] ? dt * 24 : dt * 5.5;
       bands[c] += (target - bands[c]) * Math.min(1, k);
+    }
+
+    // A sparse twinkle on top, so the quiet panel reads as alive rather than
+    // as a smooth pattern cycling.
+    if (quiet > 0.4 && Math.random() < dt * 2.4) {
+      const c = (Math.random() * cols) | 0;
+      bands[c] = Math.min(1, bands[c] + 0.22 + Math.random() * 0.3);
     }
   }
 

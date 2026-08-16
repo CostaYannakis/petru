@@ -54,13 +54,28 @@ the microphone read as the same instrument as the idle animation. Both also sit
 on a floor, because a grid this coarse has few steps per side and a raw zero
 reads as a broken column rather than a quiet one.
 
+### Quiet
+
+A silent room would otherwise pin every column to the floor at the same height,
+which looks less like a quiet panel than a broken one. Underneath everything is
+a slow per-column wander, driven by three incommensurate rates off a fixed seed
+so it never repeats and neighbouring columns drift apart, plus a sparse twinkle
+that pops a random column now and then. It's weighted by how little real signal
+there is, so it vanishes the moment there's music to show instead.
+
 ### On the microphone
 
 iOS gives no way to tap what another app is playing, so this listens to the
-room: the phone hears the speakers. It is strictly opt-in — one tap on the only
-control on screen. That is both what Safari requires to unlock an AudioContext
-and the only decent way to ask for someone's microphone. Nothing is recorded,
-transmitted, or stored; the samples go straight into an FFT and are thrown away.
+room: the phone hears the speakers.
+
+It is strictly opt-in. Nothing is drawn over the panel — the whole surface is
+the control, so **tap anywhere** to start listening and tap again to stop. That
+tap isn't decoration: Safari won't unlock an AudioContext without a gesture, and
+a page shouldn't reach for a microphone unprompted. The panel is its own
+feedback, since it starts moving with the room.
+
+Nothing is recorded, transmitted, or stored; the samples go straight into an
+FFT and are thrown away.
 
 ### The wordmark
 
