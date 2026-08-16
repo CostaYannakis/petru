@@ -14,17 +14,25 @@ on.
 Everything on screen is one warm ramp. An LED is either off — smoked black,
 still faintly visible so the grid itself reads — or lit somewhere along:
 
-| Position     | Colour        |
-| ------------ | ------------- |
-| off          | black         |
-| centre spine | ember         |
-| mid          | amber         |
-| outer        | orange        |
-| bar tips     | golden yellow |
+| Row from the centre | Colour        |
+| ------------------- | ------------- |
+| off                 | black         |
+| 0 — the spine       | ember         |
+| 1                   | amber         |
+| 2                   | orange        |
+| 3                   | golden yellow |
+| 4                   | white         |
+| 5 — the tip         | blue          |
 
-The band stops are spaced for a *coarse* grid: with only six rows per side,
-each row has to land on a visibly different colour, or golden yellow never
-reaches anything but the top row.
+The warm core is the brief; the white and blue at the tips are what the Petru
+hardware does, and they're what gives the panel its snap against a dark
+surround. `PALETTES.ember` in `palette.ts` is the warm-only ramp if you want
+the cool tips gone — swap `ACTIVE` to it.
+
+The stops are spaced for a *coarse* grid. With only six rows per side each row
+has to land on a visibly different colour, or two rows share one and the ramp
+reads as four colours instead of six. There's also an extra stop between white
+and blue, so panels with more rows don't interpolate through grey.
 
 Defined once in `src/lib/palette.ts` and mirrored into CSS tokens in
 `src/app/globals.css`, so the canvas and the DOM chrome can't drift apart.
