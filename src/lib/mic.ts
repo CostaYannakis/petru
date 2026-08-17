@@ -19,8 +19,31 @@ export type MicSource = {
 const F_MIN = 45;
 const F_MAX = 12_000;
 
-// Anything under this is treated as room hiss rather than signal.
-const NOISE_GATE = 0.05;
+// Anything under this is treated as room hiss rather than signal. Set low:
+// the panel is meant to answer a conversation across the room, not just music
+// played at it, and the floor plus the idle wander already cover the case
+// where what gets through is nothing but hiss.
+const NOISE_GATE = 0.03;
+
+/**
+ * The window the byte spectrum is mapped across. This is the sensitivity knob:
+ * the analyser stretches `MIN_DB`..`MAX_DB` over 0..255, so lowering the pair
+ * means less sound in the room is needed to fill the panel.
+ *
+ * -25dB at the top is well under a loud speaker, which is the point — the
+ * panel should be moving properly at conversation level and pinned by music,
+ * rather than saving its top rows for a volume nobody plays at indoors. The
+ * window stays about 70dB wide so there is still a ramp between the two.
+ */
+const MIN_DB = -95;
+const MAX_DB = -25;
+
+/**
+ * How far the auto-gain will push a quiet room, as the smallest peak it will
+ * normalise against — 1/0.06, so about sixteen times. Lower is more sensitive
+ * and, past a point, an amplified hiss.
+ */
+const AGC_FLOOR = 0.06;
 
 type WebkitWindow = Window & { webkitAudioContext?: typeof AudioContext };
 
@@ -51,8 +74,8 @@ export async function startMic(): Promise<MicSource> {
   const analyser = ctx.createAnalyser();
   analyser.fftSize = 2048;
   analyser.smoothingTimeConstant = 0; // the panel runs its own ballistics
-  analyser.minDecibels = -85;
-  analyser.maxDecibels = -12;
+  analyser.minDecibels = MIN_DB;
+  analyser.maxDecibels = MAX_DB;
 
   // Note the analyser is deliberately not connected onward to the
   // destination: routing the mic back to the speakers would howl.
@@ -107,9 +130,11 @@ export async function startMic(): Promise<MicSource> {
       }
 
       // Slow auto-gain so a quiet room and a loud one both fill the panel:
-      // jump straight to a new peak, then bleed back down.
-      agc = loudest > agc ? loudest : agc * 0.992 + loudest * 0.008;
-      const scale = 1 / (agc > 0.1 ? agc : 0.1);
+      // jump straight to a new peak, then bleed back down. The bleed is quick
+      // enough that the panel recovers its reach a second or so after a loud
+      // moment, rather than sulking through the quiet passage after it.
+      agc = loudest > agc ? loudest : agc * 0.988 + loudest * 0.012;
+      const scale = 1 / (agc > AGC_FLOOR ? agc : AGC_FLOOR);
 
       for (let c = 0; c < n; c++) {
         const v = out[c] * scale;

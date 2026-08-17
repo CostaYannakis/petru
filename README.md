@@ -84,7 +84,11 @@ Two sources can fill those arrays:
   spaced logarithmically from 45Hz to 12kHz, the way pitch is heard; linear
   bins would cram every instrument into the left edge. A slow auto-gain means a
   quiet room and a loud one both fill the panel, and a noise gate keeps silence
-  looking like silence.
+  looking like silence. `MIN_DB`/`MAX_DB` are the sensitivity: they set the
+  window the spectrum is stretched across, and they're deliberately low, so the
+  panel is moving properly at conversation level rather than holding its top
+  rows back for a volume nobody plays indoors. `AGC_FLOOR` caps how far a quiet
+  room gets pushed — lower is more sensitive and, past a point, amplified hiss.
 - **An idle animation** — used until the mic is switched on, so the panel is
   never a dead screen. Shaped like the real thing: bass on the left, a tilted
   noise floor, per-column phase so neighbouring bars don't move as one slab,
@@ -95,6 +99,19 @@ the microphone read as the same instrument as the idle animation. Both also sit
 on a floor, because a grid this coarse has few steps and a raw zero reads as a
 broken column rather than a quiet one. The floor is what keeps the bottom row
 lit right across the panel, so the bars always stand on a deck.
+
+### Peak markers
+
+Every column leaves a single LED behind at its high-water line. It parks there
+for `PEAK_HOLD`, then sinks at `PEAK_FALL` — about a third of the panel's height
+per second, against a bar that drops away in under half of one. So the loudest
+moment of the last few seconds stays legible after the sound has gone, and the
+marker glides down through the colour band as it falls.
+
+It's the one part of the panel that reports history rather than now, and it's
+what makes a transient — a snare, a door — read as an event instead of a
+flicker. A marker can never fall past its own bar, so a column that's still loud
+wears its marker on top rather than stranding one inside itself.
 
 ### Quiet
 

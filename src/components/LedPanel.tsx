@@ -54,6 +54,18 @@ const PITCH_TARGET = 36;
 const FLOOR = 0.08;
 
 /**
+ * The peak marker: a single LED left behind at each column's high-water line.
+ *
+ * It parks there for a beat and is then let go, drifting down far slower than
+ * the bar fell out from under it, so the loudest moment of the last second or
+ * two stays legible after the sound has gone. It's the one part of the panel
+ * that reports history rather than now, which is what makes a transient — a
+ * snare, a door — read as an event instead of a flicker.
+ */
+const PEAK_HOLD = 0.55; // seconds parked at a new high
+const PEAK_FALL = 0.32; // then this much of the panel's height per second
+
+/**
  * Idle wander. A panel with nothing coming in should look powered, not frozen,
  * so a slow per-column drift fills in underneath — fading out as soon as there
  * is real signal above `QUIET_AT` to show instead.
@@ -96,6 +108,8 @@ function setup(
   // --- signal -------------------------------------------------------------
   let bands = new Float32Array(0); // smoothed amplitude per column, 0..1
   let targets = new Float32Array(0); // this frame's raw amplitude per column
+  let peaks = new Float32Array(0); // each column's high-water line, 0..1
+  let holds = new Float32Array(0); // ...and how long it stays parked there
   let seeds = new Float32Array(0); // fixed per-column phase, so neighbours differ
   let word = new Uint8Array(0); // wordmark, 1 bit per LED
   let wordTop = 0; // the wordmark's cap row
@@ -229,6 +243,8 @@ function setup(
 
     bands = new Float32Array(cols);
     targets = new Float32Array(cols);
+    peaks = new Float32Array(cols);
+    holds = new Float32Array(cols);
     level = new Float32Array(cols * rows);
     tone = new Float32Array(cols * rows);
 
@@ -319,6 +335,18 @@ function setup(
 
       const k = target > bands[c] ? dt * 24 : dt * 5.5;
       bands[c] += (target - bands[c]) * Math.min(1, k);
+
+      // The marker takes a new high instantly, then parks before it starts to
+      // sink. It can never fall past the bar, so a column that's still loud
+      // carries its own marker on top rather than leaving one behind inside.
+      if (bands[c] >= peaks[c]) {
+        peaks[c] = bands[c];
+        holds[c] = PEAK_HOLD;
+      } else if (holds[c] > 0) {
+        holds[c] -= dt;
+      } else {
+        peaks[c] = Math.max(bands[c], peaks[c] - PEAK_FALL * dt);
+      }
     }
 
     // A sparse twinkle on top, so the quiet panel reads as alive rather than
@@ -375,10 +403,14 @@ function setup(
       // h is height above the bottom row, which is both how far the bar has
       // climbed and where its LEDs sit on the colour band.
       const lit = Math.round(bands[c] * rows);
+      const mark = clamp(Math.round(peaks[c] * rows) - 1, 0, rows - 1);
+
       for (let h = 0; h < rows; h++) {
         const idx = (rows - 1 - h) * cols + c;
-        // The topmost lit LED is the brightest thing in the column.
-        level[idx] = h < lit ? (h === lit - 1 ? 1 : 0.82) : 0;
+        // The topmost lit LED is the brightest thing in the column, and so is
+        // the marker floating in the dark above it.
+        const v = h < lit ? (h === lit - 1 ? 1 : 0.82) : h === mark ? 1 : 0;
+        level[idx] = v;
         tone[idx] = h / span;
       }
     }
