@@ -52,6 +52,36 @@ const MAX_DB = -25;
  */
 const AGC_FLOOR = 0.11;
 
+/**
+ * Spectral tilt correction — what makes the whole width move rather than the
+ * bass end alone.
+ *
+ * Music has far more energy at the bottom than the top, so the right-hand
+ * columns sit permanently low no matter how sensitive the mic is, and the
+ * global auto-gain makes it worse: it normalises against the loudest column,
+ * which is nearly always a bass one, so the treble is scaled by somebody else's
+ * gain. Expansion then squashes hardest exactly where there was least to begin
+ * with, so raising `PUNCH` kills the right side first.
+ *
+ * The fix is a slow per-column average and a gain that pulls each column toward
+ * the panel's mean — quiet columns up, loud ones gently down. `STRENGTH` just
+ * under 1 leaves a little of the natural bass lean rather than ruling a
+ * straight line across the panel.
+ *
+ * The gain is computed from the *average*, so it only flattens the standing
+ * shape of the spectrum. Whatever a column does around its own average passes
+ * through at full size, which is the whole point: it equalises the tilt without
+ * touching the dynamics, so the treble dances as hard as the bass instead of
+ * twitching along the bottom two rows.
+ *
+ * It corrects shape, never level: it runs on gated values, so a column with
+ * nothing in it averages zero and gets lifted to zero. Silence stays silent.
+ */
+const TILT_STRENGTH = 0.9;
+const TILT_MIN = 0.6; // most a loud column is pulled down
+const TILT_MAX = 5; // most a quiet one is pushed up
+const TILT_TRACK = 0.01; // per frame, so the average settles over a second or two
+
 type WebkitWindow = Window & { webkitAudioContext?: typeof AudioContext };
 
 export async function startMic(): Promise<MicSource> {
@@ -93,6 +123,10 @@ export async function startMic(): Promise<MicSource> {
   let agc = 0.35;
   let stopped = false;
 
+  // Each column's own slow average, for the tilt correction. Sized on the
+  // first read and again whenever the panel is rebuilt at a new width.
+  let colAvg = new Float32Array(0);
+
   return {
     read(out) {
       if (stopped) return;
@@ -100,7 +134,9 @@ export async function startMic(): Promise<MicSource> {
       analyser.getByteFrequencyData(bins);
       const nyquist = ctx.sampleRate / 2;
       const n = out.length;
-      let loudest = 0;
+
+      const sized = colAvg.length === n;
+      if (!sized) colAvg = new Float32Array(n);
 
       for (let c = 0; c < n; c++) {
         // Columns are spaced logarithmically, the way pitch is heard —
@@ -123,17 +159,42 @@ export async function startMic(): Promise<MicSource> {
         }
 
         // Mean alone reads mushy, peak alone jitters. Split the difference.
-        const mean = sum / (i1 - i0);
-        let v = (mean * 0.45 + peak * 0.55) / 255;
+        const binMean = sum / (i1 - i0);
+        const v0 = (binMean * 0.45 + peak * 0.55) / 255;
 
-        // Music rolls off toward the treble; the panel shouldn't go dead
-        // there, so lift the top end a little.
-        v *= 0.8 + 0.75 * (c / n);
+        out[c] = v0 > NOISE_GATE ? v0 - NOISE_GATE : 0;
+      }
 
-        v = v > NOISE_GATE ? v - NOISE_GATE : 0;
+      // --- tilt: pull every column toward the panel's mean -----------------
+      // Seeded from the first frame rather than crept up to from zero, so the
+      // right-hand side isn't dead for the first second after switching on.
+      let mean = 0;
+      for (let c = 0; c < n; c++) {
+        colAvg[c] = sized
+          ? colAvg[c] + (out[c] - colAvg[c]) * TILT_TRACK
+          : out[c];
+        mean += colAvg[c];
+      }
+      mean /= n;
 
-        out[c] = v;
-        if (v > loudest) loudest = v;
+      let loudest = 0;
+
+      // Below this the room is effectively empty, and there is no shape worth
+      // correcting — only hiss to amplify into a shape.
+      if (mean > 0.002) {
+        for (let c = 0; c < n; c++) {
+          const a = colAvg[c] > 1e-4 ? colAvg[c] : 1e-4;
+
+          let g = Math.pow(mean / a, TILT_STRENGTH);
+          if (g < TILT_MIN) g = TILT_MIN;
+          else if (g > TILT_MAX) g = TILT_MAX;
+
+          const v = out[c] * g;
+          out[c] = v;
+          if (v > loudest) loudest = v;
+        }
+      } else {
+        for (let c = 0; c < n; c++) if (out[c] > loudest) loudest = out[c];
       }
 
       // Slow auto-gain so a quiet room and a loud one both fill the panel:

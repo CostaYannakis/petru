@@ -75,7 +75,7 @@ const PEAK_FALL = 0.32; // then this much of the panel's height per second
  * is mostly at rest and then goes off. Raise it for more contrast, and for a
  * panel that ignores more of what it can technically hear.
  */
-const PUNCH = 1.75;
+const PUNCH = 2.1;
 
 /**
  * Idle wander. A panel with nothing coming in should look powered, not frozen —
@@ -287,9 +287,10 @@ function setup(
       const f = cols > 1 ? c / (cols - 1) : 0;
       const s = seeds[c];
 
-      // Spectral tilt: louder at the bass end, but the treble still has life
-      // rather than dying off into a flat row of unlit columns.
-      const tilt = 0.5 + 0.5 * Math.pow(1 - f, 1.3);
+      // Spectral tilt: still leaning on the bass end, but only just. The mic
+      // path corrects its own tilt now, and this should match what that gives
+      // — a panel that moves right the way across, not one that fades out.
+      const tilt = 0.74 + 0.26 * Math.pow(1 - f, 1.3);
 
       // Per-column phase is what keeps adjacent bars from moving as one slab.
       let n = 0;

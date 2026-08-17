@@ -118,6 +118,26 @@ low and only a real hit reaches the top rows.
 `PUNCH` is the one to reach for. Raise it for more contrast, and for a panel
 that ignores more of what it can technically hear.
 
+### Spectral tilt
+
+Music has far more energy at the bottom than the top, so without help the
+right-hand columns sit permanently low no matter how sensitive the mic is. The
+global auto-gain makes it worse — it normalises against the loudest column,
+nearly always a bass one, so the treble ends up scaled by somebody else's gain.
+Expansion then squashes hardest exactly where there was least to begin with,
+which means **raising `PUNCH` kills the right side first**.
+
+So the mic keeps a slow average per column and applies a gain that pulls each
+one toward the panel's mean. The gain comes off the *average*, so it only
+flattens the standing shape of the spectrum — whatever a column does around its
+own average passes through at full size. That's what equalises the tilt without
+touching the dynamics, and it's why the treble can dance as hard as the bass.
+
+`TILT_STRENGTH` is how complete the correction is. At `1` every column averages
+the same height and the panel is ruled flat; just under, as it is, leaves some
+of the natural bass lean. It runs on gated values, so a column with nothing in
+it averages zero and is lifted to zero — silence is never equalised into noise.
+
 ### Peak markers
 
 Every column leaves a single LED behind at its high-water line. It parks there
