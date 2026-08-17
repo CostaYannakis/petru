@@ -63,7 +63,7 @@ const FLOOR = 0.08;
  * snare, a door — read as an event instead of a flicker.
  */
 const PEAK_HOLD = 0.55; // seconds parked at a new high
-const PEAK_FALL = 0.32; // then this much of the panel's height per second
+const PEAK_FALL = 0.64; // then this much of the panel's height per second
 
 /**
  * Expansion. The mic's auto-gain works to fill the panel, which is what makes

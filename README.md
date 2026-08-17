@@ -164,10 +164,10 @@ it averages zero and is lifted to zero — silence is never equalised into noise
 ### Peak markers
 
 Every column leaves a single LED behind at its high-water line. It parks there
-for `PEAK_HOLD`, then sinks at `PEAK_FALL` — about a third of the panel's height
-per second, against a bar that drops away in under half of one. So the loudest
-moment of the last few seconds stays legible after the sound has gone, and the
-marker glides down through the colour band as it falls.
+for `PEAK_HOLD`, then sinks at `PEAK_FALL` — about two thirds of the panel's
+height per second, still well behind a bar that drops away in under half of one.
+So the loudest moment of the last second or two stays legible after the sound
+has gone, and the marker glides down through the colour band as it falls.
 
 It's the one part of the panel that reports history rather than now, and it's
 what makes a transient — a snare, a door — read as an event instead of a
