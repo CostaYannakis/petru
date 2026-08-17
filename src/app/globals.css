@@ -103,6 +103,44 @@ body {
     );
 }
 
+/*
+ * The now-playing card arrives on an animation rather than a transition: it is
+ * mounted and shown on the same frame, so there is no earlier state for a
+ * transition to run from. It leaves on a plain opacity transition instead,
+ * which by then has something to transition from. `backwards` rather than
+ * `both`, so once the entrance is over the base style is back in charge and the
+ * exit fade isn't held open by a finished animation.
+ *
+ * Two keyframes because the scrim and the plate move differently — translating
+ * the container would drag the scrim off the bottom of the screen with it.
+ */
+@keyframes card-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes plate-in {
+  from {
+    transform: translateY(10px);
+  }
+}
+
+.card-in {
+  animation: card-in 420ms ease-out backwards;
+}
+
+.plate-in {
+  animation: plate-in 420ms ease-out backwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The fade alone carries it; nothing needs to travel. */
+  .plate-in {
+    animation: none;
+  }
+}
+
 @keyframes pulse {
   0%,
   100% {

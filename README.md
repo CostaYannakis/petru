@@ -211,6 +211,104 @@ with the wipe edge running hot like the panel is being written to.
 It's currently **parked** — the panel runs pure spectrum with no text at all.
 Flip `SHOW_WORDMARK` in `LedPanel.tsx` to bring the cycle back.
 
+## Now playing
+
+The microphone is a good way to get a *level* and a hopeless way to get a
+*name*. It cannot tell you what the song is, and it certainly cannot tell you
+when a new one started. So the two sources stay separate: the phone hears the
+speakers, and Spotify says what they are playing. Nothing in the Spotify path
+touches the audio path — the panel runs exactly as it did before.
+
+At the top of each song a card comes up for six and a half seconds with the
+cover, the title, the artist and the album, and then gets out of the way.
+
+### Why it's a photograph and not LEDs
+
+The obvious idea is to rasterise the cover into the grid the way `PETRU` is
+rasterised, and it is the one thing that isn't allowed. Spotify's developer
+policy attaches a `VisualAlteration` rule to every endpoint that serves artwork:
+visual content must be kept in its original form — no cropping, no overlays, no
+logo placed on top. A dot-matrix render is a crop, a recolour and a distortion
+at once.
+
+So the cover is shown whole or not at all, and that decides the composition. The
+card floats *above* the diffuser rather than under it, because the acrylic sheen
+that makes the LEDs look like hardware would be an overlay on somebody's record
+sleeve. The only thing done to the image is the 8px corner rounding the design
+guidelines allow for optical blending. The Spotify mark sits beside the art,
+never on it, and the whole plate links back to the track — that pairing is the
+`Attribution` rule, and it is the price of showing the content at all.
+
+The card is `pointer-events-none` apart from the link itself, so the whole
+surface is still the microphone control while it's up.
+
+### Catching the downbeat
+
+`GET /me/player/currently-playing`, and one scope: `user-read-currently-playing`.
+`user-read-playback-state` would also work and additionally hands over the device
+list, volume and shuffle state, none of which a display needs.
+
+A song has started when the track id differs from the last one seen *and* the
+progress reading is small — under twelve seconds. Both halves matter. Without the
+first, a repeat never registers; without the second, a phone waking from sleep
+announces a song that has been playing for four minutes, which is news but is not
+a downbeat. The first reply after the page loads only primes the comparison and
+never raises a card: that isn't a song starting, it's us arriving late.
+
+Polling is where this could go wrong quietly. A fixed five seconds would find the
+next track within five seconds of its downbeat, which is five seconds of the
+wrong cover on screen; anything faster is a tight loop against a rate limit for
+no reason. So the reply carries its own `nextPollMs` and the panel obeys it:
+five seconds at rest, and — because `progress_ms` and `duration_ms` say when the
+current track ends — a poll placed just after that moment. Steady state stays at
+six calls a minute and the transition still lands on time. A `429` hands back
+its `Retry-After` as the next delay, a backgrounded tab stops polling entirely,
+and a `401` buys exactly one refresh and one retry before giving up.
+
+### Tokens
+
+Authorization Code with PKCE. There is no client secret in this repo and there
+is no token in the browser: the code exchange happens in a route handler and the
+result is sealed with AES-GCM into an httpOnly cookie, so the panel only ever
+talks to `/api/now-playing` and gets back a track. When the refresh token
+finally expires the session is dropped and a small Spotify mark appears in the
+corner offering to reconnect — the only chrome the panel ever wears, and it
+disappears again the moment it's used.
+
+Every reply is `no-store`. Spotify's terms cover using their content for the
+moment you are showing it, not for keeping it, and a cover art file lingering in
+a CDN after the song ended would be exactly that. It's also why the card uses a
+plain `<img>` rather than `next/image`, which would re-encode the artwork and
+hold the result in the image cache.
+
+### Connecting it
+
+Create an app at [the Spotify dashboard](https://developer.spotify.com/dashboard)
+and add both redirect URIs:
+
+```
+https://<your-domain>/api/spotify/callback
+http://127.0.0.1:3000/api/spotify/callback
+```
+
+`127.0.0.1` and not `localhost` — Spotify accepts HTTPS and the loopback address
+and nothing else, so the panel has to be opened on `http://127.0.0.1:3000` in
+development or the redirect is refused. It says so if you get it wrong.
+
+Then two variables in `.env.local`:
+
+| Variable                 | What it is                                                        |
+| ------------------------ | ----------------------------------------------------------------- |
+| `SPOTIFY_CLIENT_ID`      | From the dashboard. Not `NEXT_PUBLIC_` — this stays server-side.   |
+| `SPOTIFY_SESSION_SECRET` | Seals the token cookie. Any long random string; changing it logs everyone out. |
+
+`SPOTIFY_REDIRECT_URI` is available to override the derived one, but shouldn't
+be needed: the redirect is built from the host the browser actually asked for,
+which is right both in development and behind Vercel's proxy.
+
+Without any of this the panel runs exactly as it always has, on the microphone
+and its own idle animation. The card is additive.
+
 ## Tuning
 
 `PITCH_TARGET` in `LedPanel.tsx` is the one knob for how chunky the panel
@@ -234,8 +332,12 @@ panel still reads as a panel.
 
 ```bash
 npm install
-npm run dev      # http://localhost:3000
+npm run dev      # http://127.0.0.1:3000
 npm run build
 ```
+
+`127.0.0.1` rather than `localhost`, which are the same machine and not the same
+origin as far as Spotify's redirect rules are concerned — see
+[Now playing](#connecting-it).
 
 Deployed on Vercel.
