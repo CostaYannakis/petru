@@ -19,11 +19,14 @@ export type MicSource = {
 const F_MIN = 45;
 const F_MAX = 12_000;
 
-// Anything under this is treated as room hiss rather than signal. Set low:
-// the panel is meant to answer a conversation across the room, not just music
-// played at it, and the floor plus the idle wander already cover the case
-// where what gets through is nothing but hiss.
-const NOISE_GATE = 0.03;
+// Anything under this is treated as room hiss rather than signal.
+//
+// This is the other half of sensitivity, and it pulls the opposite way: the
+// window below decides how loudly the panel hears, the gate decides what it
+// refuses to hear at all. Both are set high — hear a conversation across the
+// room, and hold completely still for an empty one — because what makes sound
+// look explosive is the silence it starts from.
+const NOISE_GATE = 0.055;
 
 /**
  * The window the byte spectrum is mapped across. This is the sensitivity knob:
@@ -40,10 +43,14 @@ const MAX_DB = -25;
 
 /**
  * How far the auto-gain will push a quiet room, as the smallest peak it will
- * normalise against — 1/0.06, so about sixteen times. Lower is more sensitive
- * and, past a point, an amplified hiss.
+ * normalise against — 1/0.11, so about nine times.
+ *
+ * The auto-gain exists to keep the panel usable at any volume, but taken too
+ * far it is also the thing that flattens a room: left uncapped it would haul
+ * near-silence up to full scale and the panel would never be still. Capping it
+ * here is what leaves somewhere for a loud moment to go.
  */
-const AGC_FLOOR = 0.06;
+const AGC_FLOOR = 0.11;
 
 type WebkitWindow = Window & { webkitAudioContext?: typeof AudioContext };
 

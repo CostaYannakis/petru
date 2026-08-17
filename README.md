@@ -94,11 +94,29 @@ Two sources can fill those arrays:
   noise floor, per-column phase so neighbouring bars don't move as one slab,
   and a kick on the beat.
 
-Both feed the same ballistics — snap up, fall away slowly — which is what makes
-the microphone read as the same instrument as the idle animation. Both also sit
-on a floor, because a grid this coarse has few steps and a raw zero reads as a
-broken column rather than a quiet one. The floor is what keeps the bottom row
-lit right across the panel, so the bars always stand on a deck.
+Both feed the same ballistics — hard attack, quick release — which is what makes
+the microphone read as the same instrument as the idle animation, and what stops
+a busy passage smearing into one lit slab. Both also sit on a floor, because a
+grid this coarse has few steps and a raw zero reads as a broken column rather
+than a quiet one. The floor is what keeps the bottom row lit right across the
+panel, so the bars always stand on a deck.
+
+### Dynamics
+
+The panel should be still in a quiet room and go off when there's sound, and
+most of the work is in resisting the things that flatten that out.
+
+The mic's auto-gain is the main culprit: it exists so any volume fills the
+panel, but left to itself it hauls near-silence up to full scale and nothing is
+ever at rest. Three settings pull against it. `NOISE_GATE` decides what counts
+as sound at all, and is set high enough that an empty room reads as empty.
+`AGC_FLOOR` caps how far a quiet one gets pushed, which is what leaves somewhere
+for a loud moment to go. Then `PUNCH` in `LedPanel.tsx` expands what survives —
+an exponent over the whole range, pulling the middle down so ordinary sound sits
+low and only a real hit reaches the top rows.
+
+`PUNCH` is the one to reach for. Raise it for more contrast, and for a panel
+that ignores more of what it can technically hear.
 
 ### Peak markers
 
@@ -115,12 +133,16 @@ wears its marker on top rather than stranding one inside itself.
 
 ### Quiet
 
-A silent room would otherwise pin every column to the floor at the same height,
-which looks less like a quiet panel than a broken one. Underneath everything is
-a slow per-column wander, driven by three incommensurate rates off a fixed seed
-so it never repeats and neighbouring columns drift apart, plus a sparse twinkle
-that pops a random column now and then. It's weighted by how little real signal
-there is, so it vanishes the moment there's music to show instead.
+A silent room would otherwise pin every column to the floor at exactly the same
+height, which looks less like a quiet panel than a broken one. Underneath
+everything is a slow per-column wander, driven by three incommensurate rates off
+a fixed seed so it never repeats and neighbouring columns drift apart, plus a
+rare twinkle that pops a single column every couple of seconds.
+
+`SHIMMER` keeps it to a row or two off the deck — enough that the panel reads as
+lit and waiting, not enough to read as something happening. It's weighted by how
+little real signal there is, so it vanishes the moment there's sound to show
+instead.
 
 ### On the microphone
 

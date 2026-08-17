@@ -66,12 +66,25 @@ const PEAK_HOLD = 0.55; // seconds parked at a new high
 const PEAK_FALL = 0.32; // then this much of the panel's height per second
 
 /**
- * Idle wander. A panel with nothing coming in should look powered, not frozen,
- * so a slow per-column drift fills in underneath — fading out as soon as there
- * is real signal above `QUIET_AT` to show instead.
+ * Expansion. The mic's auto-gain works to fill the panel, which is what makes
+ * it sensitive and also what flattens everything toward the same height; this
+ * pulls the middle of the range back down afterwards, so ordinary sound sits
+ * low and only a real hit reaches the top rows.
+ *
+ * It is the whole difference between a panel that is always busy and one that
+ * is mostly at rest and then goes off. Raise it for more contrast, and for a
+ * panel that ignores more of what it can technically hear.
  */
-const SHIMMER = 0.5;
-const QUIET_AT = 0.35;
+const PUNCH = 1.75;
+
+/**
+ * Idle wander. A panel with nothing coming in should look powered, not frozen —
+ * but only just. This lifts a row or two off the deck and no further, so a
+ * quiet room reads as a lit panel waiting rather than as something happening,
+ * and it fades out entirely as soon as there is real signal above `QUIET_AT`.
+ */
+const SHIMMER = 0.12;
+const QUIET_AT = 0.22;
 
 const SANS = `ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif`;
 
@@ -287,11 +300,12 @@ function setup(
       n = (n / 1.28) * 0.5 + 0.5;
       n = Math.pow(n, 1.4); // bias low, so the panel keeps some dark in it
 
-      const low = kick * Math.pow(1 - f, 2.6) * 0.45;
+      const low = kick * Math.pow(1 - f, 2.6) * 0.8;
 
-      // Gain is set so a typical bar reaches the middle of the band and only
-      // peaks touch the tip colour — all of it in play, nothing pinned.
-      targets[c] = clamp((tilt * n * 1.5 + low) * swell, 0, 1);
+      // Weighted toward the kick rather than the wash, so this rests low and
+      // moves on the beat — the same shape the mic gives once `PUNCH` has
+      // pulled the middle of its range down.
+      targets[c] = clamp((tilt * n * 1.1 + low) * swell, 0, 1);
     }
   }
 
@@ -313,7 +327,10 @@ function setup(
     const quiet = clamp(1 - peak / QUIET_AT, 0, 1);
 
     for (let c = 0; c < cols; c++) {
-      let raw = targets[c];
+      // Expanded first, so the wander below is compared against a level that
+      // has already been pushed down — otherwise the drift would be competing
+      // with the loud reading rather than the honest one.
+      let raw = Math.pow(targets[c], PUNCH);
 
       if (quiet > 0) {
         // Three incommensurate rates off a fixed per-column seed: it never
@@ -333,7 +350,10 @@ function setup(
       // bottom row stays lit, the way it does on real hardware.
       const target = FLOOR + (1 - FLOOR) * raw;
 
-      const k = target > bands[c] ? dt * 24 : dt * 5.5;
+      // Hard attack, quick release: the bar is up on the transient and back
+      // down before the next one, which is what stops a busy passage from
+      // smearing into one lit slab and leaves the markers to hold the history.
+      const k = target > bands[c] ? dt * 34 : dt * 7.5;
       bands[c] += (target - bands[c]) * Math.min(1, k);
 
       // The marker takes a new high instantly, then parks before it starts to
@@ -349,11 +369,12 @@ function setup(
       }
     }
 
-    // A sparse twinkle on top, so the quiet panel reads as alive rather than
-    // as a smooth pattern cycling.
-    if (quiet > 0.4 && Math.random() < dt * 2.4) {
+    // A rare, small twinkle on top, so the quiet panel reads as alive rather
+    // than as a smooth pattern cycling. Roughly one column every couple of
+    // seconds, lifted by a row or so — any more and the rest is no longer rest.
+    if (quiet > 0.4 && Math.random() < dt * 0.7) {
       const c = (Math.random() * cols) | 0;
-      bands[c] = Math.min(1, bands[c] + 0.22 + Math.random() * 0.3);
+      bands[c] = Math.min(1, bands[c] + 0.08 + Math.random() * 0.12);
     }
   }
 
