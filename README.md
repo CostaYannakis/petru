@@ -118,6 +118,29 @@ low and only a real hit reaches the top rows.
 `PUNCH` is the one to reach for. Raise it for more contrast, and for a panel
 that ignores more of what it can technically hear.
 
+### Why the beat lands in the same place
+
+The whole panel is divided by a single gain, so what that gain is measured from
+decides whether a rhythm reads as a rhythm.
+
+Measuring it from the loudest column is the obvious choice and it is wrong, in a
+way that's hard to see and obvious once measured: every element in the mix takes
+turns suppressing the others. A hi-hat lands, becomes the loudest column, the
+panel is divided by the hat — and the kick underneath it drops by half. Nothing
+about the kick changed. It was just measured against something else. With an
+identical kick and a hat coming in and out, that swing was **2.4 rows out of
+12**, which is what stops a beat looking like a beat.
+
+So the reference is the **mean across the whole panel**. One loud column barely
+moves a twenty-column mean, and the same swing measures **0.1 rows**. It also
+drifts rather than snapping — a reference that jumps to the current peak maps
+every peak to full scale by construction, so a soft hit and a hard one would
+both hit the ceiling.
+
+`AGC_ROOM` then sets where ordinary content sits, since the mean is well below
+the peaks it has to leave headroom for. At 1.8 a beat lands about two thirds up
+with four rows still above it. Lower pins the panel, higher flattens it.
+
 ### Spectral tilt
 
 Music has far more energy at the bottom than the top, so without help the

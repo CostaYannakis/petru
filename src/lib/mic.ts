@@ -42,15 +42,44 @@ const MIN_DB = -95;
 const MAX_DB = -25;
 
 /**
- * How far the auto-gain will push a quiet room, as the smallest peak it will
- * normalise against — 1/0.11, so about nine times.
+ * The auto-gain, and the thing that decides whether a beat is consistent.
  *
- * The auto-gain exists to keep the panel usable at any volume, but taken too
- * far it is also the thing that flattens a room: left uncapped it would haul
- * near-silence up to full scale and the panel would never be still. Capping it
- * here is what leaves somewhere for a loud moment to go.
+ * The whole panel is divided by one number, so what that number is measured
+ * from matters enormously. Measuring it from the loudest column — the obvious
+ * choice — means every element in the mix takes turns suppressing the others:
+ * when a hi-hat lands it becomes the loudest column, the panel is divided by
+ * the hat, and the kick underneath it drops by half. Nothing about the kick
+ * changed. It just got measured against something else.
+ *
+ * So the reference is the mean across the whole panel. One loud column moves a
+ * twenty-column mean barely at all, which is what lets the same sound land in
+ * the same place whatever else is playing.
+ *
+ * It also moves slowly in both directions rather than snapping to peaks, since
+ * a reference that jumps to the current peak maps every peak to full scale by
+ * construction — a soft hit and a hard one would both hit the ceiling. Over one
+ * beat this is effectively still, so the loudness of a sound is what decides
+ * the height of its bar. `UP` is quicker than `DOWN` so turning the volume up
+ * is followed in a second or so, while the fade after a loud passage is slow
+ * enough not to read as pumping.
  */
-const AGC_FLOOR = 0.11;
+const AGC_UP = 0.02; // per frame, so under a second
+const AGC_DOWN = 0.006; // ...and a few seconds coming back down
+
+/**
+ * Headroom above the reference. The mean is well below the peaks it has to
+ * leave room for, so this sets where ordinary content sits: at 1.8 a beat lands
+ * around two thirds up and there are still four rows above it for something
+ * genuinely louder to reach. Lower pins the panel, higher flattens it.
+ */
+const AGC_ROOM = 1.8;
+
+/**
+ * The smallest reference the gain will divide by, so a quiet room is lifted but
+ * near-silence is not hauled up to full scale. In units of the panel mean,
+ * which is a good deal smaller than the peak this used to be measured against.
+ */
+const AGC_FLOOR = 0.05;
 
 /**
  * Spectral tilt correction — what makes the whole width move rather than the
@@ -80,7 +109,15 @@ const AGC_FLOOR = 0.11;
 const TILT_STRENGTH = 0.9;
 const TILT_MIN = 0.6; // most a loud column is pulled down
 const TILT_MAX = 5; // most a quiet one is pushed up
-const TILT_TRACK = 0.01; // per frame, so the average settles over a second or two
+/**
+ * How fast the per-column average follows. Deliberately far slower than the
+ * music: at a second or two it starts tracking the rhythm itself, and a column
+ * that gets hit on every beat has its average dragged up and its gain pulled
+ * down in response — the correction quietly cancelling the beat it was supposed
+ * to be showing. Over ten seconds it can only see the standing shape of the
+ * spectrum, which is the only thing it should be correcting.
+ */
+const TILT_TRACK = 0.0015;
 
 type WebkitWindow = Window & { webkitAudioContext?: typeof AudioContext };
 
@@ -120,7 +157,7 @@ export async function startMic(): Promise<MicSource> {
 
   const bins = new Uint8Array(analyser.frequencyBinCount);
   const ratio = F_MAX / F_MIN;
-  let agc = 0.35;
+  let agc = 0;
   let stopped = false;
 
   // Each column's own slow average, for the tilt correction. Sized on the
@@ -177,8 +214,6 @@ export async function startMic(): Promise<MicSource> {
       }
       mean /= n;
 
-      let loudest = 0;
-
       // Below this the room is effectively empty, and there is no shape worth
       // correcting — only hiss to amplify into a shape.
       if (mean > 0.002) {
@@ -189,20 +224,25 @@ export async function startMic(): Promise<MicSource> {
           if (g < TILT_MIN) g = TILT_MIN;
           else if (g > TILT_MAX) g = TILT_MAX;
 
-          const v = out[c] * g;
-          out[c] = v;
-          if (v > loudest) loudest = v;
+          out[c] *= g;
         }
-      } else {
-        for (let c = 0; c < n; c++) if (out[c] > loudest) loudest = out[c];
       }
 
-      // Slow auto-gain so a quiet room and a loud one both fill the panel:
-      // jump straight to a new peak, then bleed back down. The bleed is quick
-      // enough that the panel recovers its reach a second or so after a loud
-      // moment, rather than sulking through the quiet passage after it.
-      agc = loudest > agc ? loudest : agc * 0.988 + loudest * 0.012;
-      const scale = 1 / (agc > AGC_FLOOR ? agc : AGC_FLOOR);
+      // How loud the panel is as a whole. A mean rather than a peak, so no
+      // single column can decide the gain for all the others.
+      let level = 0;
+      for (let c = 0; c < n; c++) level += out[c];
+      level /= n;
+
+      // The reference drifts toward the room's level and is never pulled to a
+      // transient, so over one beat it holds still and the loudness of a sound
+      // is what decides the height of its bar. Seeded from the first frame, or
+      // it would spend the opening seconds of a session crawling to the right
+      // answer from a guess.
+      agc = sized ? agc + (level - agc) * (level > agc ? AGC_UP : AGC_DOWN) : level;
+
+      const ref = agc > AGC_FLOOR ? agc : AGC_FLOOR;
+      const scale = 1 / (ref * AGC_ROOM);
 
       for (let c = 0; c < n; c++) {
         const v = out[c] * scale;
