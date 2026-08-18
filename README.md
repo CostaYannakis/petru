@@ -474,12 +474,28 @@ escaping their own bezels. **Brushed** is the alternative: seventies aluminium
 fascia, horizontal grain, drawn once on resize since hundreds of random
 striations regenerated per frame would shimmer as well as being absurd.
 
-Each instrument is bolted through its corners with **brass screws**. They're the
-detail that stops a drawn meter reading as drawn, partly because they catch light
-from a different direction than the dial does, and mostly because the slots are
-never lined up — a screw at a tidy angle looks like a graphic, and the same screw
-at some arbitrary angle looks like hardware someone did up by hand. So each one
-takes a fixed angle of its own. The overload lamp moved inboard under the top
+Each instrument is bolted through its corners with **brass screws**, and they're
+worth the trouble they took. Two things make one read as hardware rather than as
+a circle with a line through it.
+
+The slots are never lined up — a screw at a tidy angle is a graphic, the same
+screw at an arbitrary one is something a person did up by hand — so each takes a
+fixed angle of its own, per corner and per instrument.
+
+And everything is lit from **one** direction, the same upper-left the glass sheen
+already implies. The first version rotated the canvas to draw the slot, which
+rotated the lit edge of the groove along with it, so every screw ended up lit
+from wherever its own slot happened to point. Now the light is a fixed world
+direction and the groove works out which of its two walls faces it: rotate a
+screw and the bright wall swaps sides by itself. The sign of that normal is easy
+to get backwards and looks almost right when you do, so it's checked against the
+physical case at eight angles.
+
+The rest is what a shallow dome does under a single source — a small hard
+specular *toward* the light rather than a wash across the middle, a chamfer
+bright on the lit side and gone opposite, a thin bounce along the shadow rim
+where the fascia throws a little back, and a cast shadow offset away from the
+light. The overload lamp moved inboard under the top
 edge to make room, which is the better place for it anyway: on the dial where
 you're already looking, not out on the bezel where you aren't.
 

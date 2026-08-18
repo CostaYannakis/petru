@@ -89,8 +89,16 @@ const LAMPS: Record<string, [number, number, number]> = {
 /** How much of the ramp survives when the lamp is following the palette. */
 const TINT = 0.34;
 
-/** Brass, top-lit: the highlight is up and left because the light always is. */
-const BRASS = ["#f6e5ad", "#cfae62", "#8a7038", "#4d3d1c"];
+/** Brass, brightest to deepest. */
+const BRASS = ["#fff3cd", "#dcb96a", "#9c7c38", "#4a3818"];
+
+/**
+ * Where the light in this scene comes from: up and to the left, which is where
+ * the glass sheen already says it is. Everything on the fascia has to agree
+ * with it — a screw lit from its own direction is the loudest possible tell
+ * that a picture was assembled rather than photographed.
+ */
+const LIGHT = (-135 * Math.PI) / 180;
 
 function clamp(v: number, lo: number, hi: number) {
   return v < lo ? lo : v > hi ? hi : v;
@@ -291,49 +299,139 @@ function setup(
   /**
    * A brass mounting screw.
    *
-   * Every one of these instruments is bolted through its corners, and the
-   * screws are the detail that stops a drawn meter reading as drawn — partly
-   * because they catch light from a different direction than the dial does, and
-   * partly because the slots are never lined up. That last bit is the whole
-   * trick: a screw rotated to a tidy angle looks like a graphic, and the same
-   * screw at some arbitrary angle looks like hardware someone did up by hand.
+   * The thing that makes one of these read as hardware rather than as a circle
+   * with a line through it is that every part of it is lit from the *same*
+   * direction — and the first version got that wrong in a way that is obvious
+   * once seen: it rotated the canvas to draw the slot, so the lit edge of the
+   * groove rotated with it. Every screw ended up lit from wherever its own slot
+   * happened to point.
+   *
+   * So the light is a fixed world direction here, and the groove works out
+   * which of its two walls faces it. Rotate a screw and the bright wall swaps
+   * sides on its own, which is exactly what a real one does.
+   *
+   * The rest is what a shallow dome does under a single source: a small hard
+   * specular up toward the light rather than a wash across the middle, a
+   * chamfer that is bright on the lit side and dark opposite, a thin bounce
+   * along the shadow rim where the panel throws a little back, and a cast
+   * shadow offset away from the light.
    */
   function screw(cx: number, cy: number, r: number, angle: number) {
+    const lx = Math.cos(LIGHT);
+    const ly = Math.sin(LIGHT);
+
     ctx.save();
 
-    // Seated: a dark ring under the head, so it sits in the panel rather than
-    // on it.
+    // Cast shadow, thrown away from the light and softened by distance.
+    const cast = ctx.createRadialGradient(
+      cx - lx * r * 0.28,
+      cy - ly * r * 0.28,
+      r * 0.2,
+      cx - lx * r * 0.28,
+      cy - ly * r * 0.28,
+      r * 1.5,
+    );
+    cast.addColorStop(0, "rgba(0,0,0,0.55)");
+    cast.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.fillStyle = cast;
+    ctx.fillRect(cx - r * 2, cy - r * 2, r * 4, r * 4);
+
+    // The countersink the head sits down inside.
     ctx.beginPath();
-    ctx.arc(cx, cy, r * 1.18, 0, Math.PI * 2);
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.arc(cx, cy, r * 1.13, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(0,0,0,0.62)";
     ctx.fill();
 
-    const head = ctx.createRadialGradient(
-      cx - r * 0.38,
-      cy - r * 0.38,
-      r * 0.08,
-      cx,
-      cy,
-      r,
+    // The head. Body tone shifted toward the light, so the far side falls off
+    // before the chamfer is even drawn.
+    const body = ctx.createLinearGradient(
+      cx + lx * r,
+      cy + ly * r,
+      cx - lx * r,
+      cy - ly * r,
     );
-    head.addColorStop(0, BRASS[0]);
-    head.addColorStop(0.45, BRASS[1]);
-    head.addColorStop(0.85, BRASS[2]);
-    head.addColorStop(1, BRASS[3]);
+    body.addColorStop(0, BRASS[1]);
+    body.addColorStop(0.55, BRASS[2]);
+    body.addColorStop(1, BRASS[3]);
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
-    ctx.fillStyle = head;
+    ctx.fillStyle = body;
     ctx.fill();
 
+    // The chamfer around the rim: lit side bright, opposite side nearly gone.
+    const chamfer = ctx.createLinearGradient(
+      cx + lx * r,
+      cy + ly * r,
+      cx - lx * r,
+      cy - ly * r,
+    );
+    chamfer.addColorStop(0, BRASS[0]);
+    chamfer.addColorStop(0.4, BRASS[2]);
+    chamfer.addColorStop(1, "rgba(0,0,0,0.45)");
+    ctx.lineWidth = Math.max(0.6, r * 0.2);
+    ctx.strokeStyle = chamfer;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.9, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Bounce along the shadow rim. Metal is never black on its dark side —
+    // it picks the panel back up, and leaving that out is what makes brass
+    // look like painted card.
+    ctx.lineWidth = Math.max(0.5, r * 0.09);
+    ctx.strokeStyle = "rgba(255,226,150,0.28)";
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.93, LIGHT + Math.PI * 0.55, LIGHT + Math.PI * 1.45);
+    ctx.stroke();
+
+    // --- the slot ----------------------------------------------------------
+    // Cut, not drawn on. The walls are lit by how much each one faces the key.
+    // The inner face of the wall drawn below the trough. Rotating the screw
+    // swings this around with it, so which wall is lit falls out of the angle
+    // instead of being baked in — checked against the physical case at eight
+    // angles, because getting the sign backwards here looks almost right and
+    // is the exact thing that made the first version read as a drawing.
+    const nx = Math.sin(angle);
+    const ny = -Math.cos(angle);
+    const facing = nx * lx + ny * ly;
+
+    ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(angle);
 
-    // The slot, cut rather than drawn on: a dark trough with a lit lower lip,
-    // which is what a groove in metal actually looks like.
-    ctx.fillStyle = "rgba(28,20,6,0.8)";
-    ctx.fillRect(-r * 0.74, -r * 0.15, r * 1.48, r * 0.3);
-    ctx.fillStyle = "rgba(255,240,190,0.32)";
-    ctx.fillRect(-r * 0.74, r * 0.1, r * 1.48, r * 0.07);
+    const half = r * 0.16;
+
+    // The trough itself.
+    ctx.fillStyle = "rgba(22,15,4,0.88)";
+    ctx.fillRect(-r * 0.78, -half, r * 1.56, half * 2);
+
+    // Its two long walls. One catches the light, the other cannot, and which is
+    // which falls out of the angle rather than being decided in advance.
+    const wall = Math.max(0, facing);
+    const back = Math.max(0, -facing);
+    ctx.fillStyle = `rgba(255,238,180,${0.45 * wall})`;
+    ctx.fillRect(-r * 0.78, half - r * 0.05, r * 1.56, r * 0.05);
+    ctx.fillStyle = `rgba(255,238,180,${0.45 * back})`;
+    ctx.fillRect(-r * 0.78, -half, r * 1.56, r * 0.05);
+
+    ctx.restore();
+
+    // The specular: small, hard, and up toward the light. A dome puts it there
+    // and nowhere near the middle, which is where a plain radial fill puts it.
+    const spec = ctx.createRadialGradient(
+      cx + lx * r * 0.42,
+      cy + ly * r * 0.42,
+      0,
+      cx + lx * r * 0.42,
+      cy + ly * r * 0.42,
+      r * 0.5,
+    );
+    spec.addColorStop(0, "rgba(255,250,225,0.9)");
+    spec.addColorStop(0.5, "rgba(255,240,190,0.25)");
+    spec.addColorStop(1, "rgba(255,240,190,0)");
+    ctx.fillStyle = spec;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fill();
 
     ctx.restore();
   }
