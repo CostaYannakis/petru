@@ -67,19 +67,30 @@ const IVORY = "rgb(239,231,214)";
 const INK = "#171310";
 
 /**
- * The colour of the bulbs behind the dial.
+ * The bulbs.
  *
- * Not the ramp's own colour. A lamp behind a face is an incandescent bulb, and
- * an incandescent bulb is warm white — the colour people remember from a Sansui
- * is the *filter* in front of it, not the filament. So the ramp is mixed most
- * of the way to a warm white: enough that `ice` still lights cool and `ember`
- * still lights amber, not so much that it reads as a coloured gel taped over
- * the glass.
+ * A lamp behind a dial is incandescent, and incandescent is warm white — the
+ * colour one of these receivers is remembered by is the *filter* in front of
+ * the bulb, not the filament. So these are filters, and every one of them is a
+ * long way toward white: a saturated fill behind a dial reads as a coloured
+ * gel taped over the glass, never as a lit face.
+ *
+ * `ramp` is the exception, taking the panel's own palette so the meter can
+ * match whatever the other two screens are wearing.
  */
-const FILAMENT: [number, number, number] = [255, 232, 196];
+const LAMPS: Record<string, [number, number, number]> = {
+  warm: [255, 232, 196],
+  amber: [255, 196, 122],
+  red: [255, 138, 108],
+  blue: [176, 220, 255],
+  green: [178, 240, 198],
+};
 
-/** How much of the ramp survives into the lamp. */
+/** How much of the ramp survives when the lamp is following the palette. */
 const TINT = 0.34;
+
+/** Brass, top-lit: the highlight is up and left because the light always is. */
+const BRASS = ["#f6e5ad", "#cfae62", "#8a7038", "#4d3d1c"];
 
 function clamp(v: number, lo: number, hi: number) {
   return v < lo ? lo : v > hi ? hi : v;
@@ -110,10 +121,23 @@ function setup(
   const bands = new Float32Array(BANDS);
   let needles: Needle[] = [];
 
-  // Warm white with the ramp stirred in, and a paler core for the middle of
-  // each pool — a filament is whiter at its centre than at its edges.
-  const lampRgb = mixRgb(parseRgb(colours.full[Math.round(0.6 * 255)]), FILAMENT, 1 - TINT);
-  const lampHot = mixRgb(lampRgb, [255, 255, 255], 0.45);
+  // Resolved per frame rather than per mount, since the lamp is a knob now.
+  // Both are cheap, and caching them would mean watching a setting to know when
+  // the cache is stale — more machinery than the arithmetic it would save.
+  function lamp() {
+    const choice = settings().meterLamp;
+    const base =
+      choice === "ramp"
+        ? mixRgb(
+            parseRgb(colours.full[Math.round(0.6 * 255)]),
+            LAMPS.warm,
+            1 - TINT,
+          )
+        : (LAMPS[choice] ?? LAMPS.warm);
+
+    // A filament is whiter at its centre than at its edges.
+    return { base, hot: mixRgb(base, [255, 255, 255], 0.45) };
+  }
 
   /** The brushed panel the instruments are set into, drawn once. */
   const panel = document.createElement("canvas");
@@ -159,6 +183,16 @@ function setup(
     panel.width = Math.max(1, Math.round(W * dpr));
     panel.height = Math.max(1, Math.round(H * dpr));
     pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    if (settings().meterPanel === "vanta") {
+      // Nothing at all. Not near-black, not a dark gradient — a gradient is
+      // still a surface, and the point of putting these on vantablack is that
+      // there is no surface: the instruments float, and the only thing in the
+      // frame besides them is the light escaping their own bezels.
+      pctx.fillStyle = "#000";
+      pctx.fillRect(0, 0, W, H);
+      return;
+    }
 
     const base = pctx.createLinearGradient(0, 0, 0, H);
     base.addColorStop(0, "#cdc7ba");
@@ -254,10 +288,61 @@ function setup(
     }
   }
 
+  /**
+   * A brass mounting screw.
+   *
+   * Every one of these instruments is bolted through its corners, and the
+   * screws are the detail that stops a drawn meter reading as drawn — partly
+   * because they catch light from a different direction than the dial does, and
+   * partly because the slots are never lined up. That last bit is the whole
+   * trick: a screw rotated to a tidy angle looks like a graphic, and the same
+   * screw at some arbitrary angle looks like hardware someone did up by hand.
+   */
+  function screw(cx: number, cy: number, r: number, angle: number) {
+    ctx.save();
+
+    // Seated: a dark ring under the head, so it sits in the panel rather than
+    // on it.
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 1.18, 0, Math.PI * 2);
+    ctx.fillStyle = "rgba(0,0,0,0.55)";
+    ctx.fill();
+
+    const head = ctx.createRadialGradient(
+      cx - r * 0.38,
+      cy - r * 0.38,
+      r * 0.08,
+      cx,
+      cy,
+      r,
+    );
+    head.addColorStop(0, BRASS[0]);
+    head.addColorStop(0.45, BRASS[1]);
+    head.addColorStop(0.85, BRASS[2]);
+    head.addColorStop(1, BRASS[3]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.fillStyle = head;
+    ctx.fill();
+
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+
+    // The slot, cut rather than drawn on: a dark trough with a lit lower lip,
+    // which is what a groove in metal actually looks like.
+    ctx.fillStyle = "rgba(28,20,6,0.8)";
+    ctx.fillRect(-r * 0.74, -r * 0.15, r * 1.48, r * 0.3);
+    ctx.fillStyle = "rgba(255,240,190,0.32)";
+    ctx.fillRect(-r * 0.74, r * 0.1, r * 1.48, r * 0.07);
+
+    ctx.restore();
+  }
+
   /** One instrument, drawn into the box it has been given. */
   function face(x: number, y: number, w: number, h: number, m: Needle) {
     const S = settings();
 
+    const bulb = lamp();
     const pad = Math.min(w, h) * 0.06;
     const fx = x + pad;
     const fy = y + pad;
@@ -327,14 +412,14 @@ function setup(
         const lx = fx + fw * at;
         const ly = fy + fh * 0.9;
         const pool = ctx.createRadialGradient(lx, ly, 0, lx, ly, fw * 0.62);
-        pool.addColorStop(0, rgb(lampHot, 0.38 * S.meterGlow));
-        pool.addColorStop(0.45, rgb(lampRgb, 0.18 * S.meterGlow));
-        pool.addColorStop(1, rgb(lampRgb, 0));
+        pool.addColorStop(0, rgb(bulb.hot, 0.38 * S.meterGlow));
+        pool.addColorStop(0.45, rgb(bulb.base, 0.18 * S.meterGlow));
+        pool.addColorStop(1, rgb(bulb.base, 0));
         ctx.fillStyle = pool;
         ctx.fillRect(fx, fy, fw, fh);
       }
 
-      ctx.fillStyle = rgb(lampRgb, 0.12 * S.meterGlow);
+      ctx.fillStyle = rgb(bulb.base, 0.12 * S.meterGlow);
       ctx.fillRect(fx, fy, fw, fh);
       ctx.restore();
     }
@@ -396,15 +481,20 @@ function setup(
     ctx.fillText("VU", px, py - R * 0.38);
 
     // --- the overload lamp -------------------------------------------------
+    // Moved in under the top edge, since the corners belong to the screws now.
+    // It is also the right place for it: on the dial, where you are already
+    // looking, rather than out on the bezel where you are not.
     if (S.meterPeak > 0) {
       const lampR = Math.max(2.5, R * 0.045);
-      const lx = fx + fw - lampR * 3.2;
-      const ly = fy + lampR * 3.2;
+      const lx = px;
+      const ly = fy + fh * 0.13;
       const lit = m.lamp > 0;
 
       ctx.beginPath();
       ctx.arc(lx, ly, lampR, 0, Math.PI * 2);
-      ctx.fillStyle = lit ? colours.full[Math.round(0.42 * 255)] : "#b9ae99";
+      ctx.fillStyle = lit
+        ? colours.full[Math.round(0.42 * 255)]
+        : "rgba(80,70,55,0.45)";
       ctx.fill();
 
       if (lit) {
@@ -487,6 +577,21 @@ function setup(
     }
     ctx.stroke();
 
+    // Four of them, at the corners, each at its own angle.
+    const sr = Math.max(1.6, Math.min(fw, fh) * 0.026);
+    const inset = sr * 2.1;
+    const corners: [number, number][] = [
+      [fx + inset, fy + inset],
+      [fx + fw - inset, fy + inset],
+      [fx + inset, fy + fh - inset],
+      [fx + fw - inset, fy + fh - inset],
+    ];
+    corners.forEach(([sx, sy], i) => {
+      // Fixed per corner and per instrument, so they never line up with one
+      // another and never move between frames.
+      screw(sx, sy, sr, Math.sin((i + 1) * 12.9898 + x * 0.017) * Math.PI);
+    });
+
     // A little light escaping past the bezel onto the fascia. Nothing seals
     // perfectly, and the leak is what stops the meter reading as a bright
     // rectangle pasted onto a photograph of a panel.
@@ -500,8 +605,8 @@ function setup(
         fy + fh * 0.5,
         Math.max(fw, fh) * 0.72,
       );
-      leak.addColorStop(0, rgb(lampRgb, 0.16 * S.meterGlow));
-      leak.addColorStop(1, rgb(lampRgb, 0));
+      leak.addColorStop(0, rgb(bulb.base, 0.16 * S.meterGlow));
+      leak.addColorStop(1, rgb(bulb.base, 0));
       ctx.fillStyle = leak;
       ctx.fillRect(x, y, w, h);
     }
@@ -542,12 +647,23 @@ function setup(
   const ro = new ResizeObserver(() => build());
   ro.observe(host);
 
+  // The needle count and the fascia are the two settings that are not simply
+  // read on the frame that uses them: one owns how many instruments exist, the
+  // other is a canvas painted once and blitted thereafter.
   let count = settings().meterCount;
+  let fascia = settings().meterPanel;
   const unsubscribe = subscribeSettings(() => {
-    const next = settings().meterCount;
-    if (next === count) return;
-    count = next;
-    fit();
+    const S = settings();
+
+    if (S.meterCount !== count) {
+      count = S.meterCount;
+      fit();
+    }
+
+    if (S.meterPanel !== fascia) {
+      fascia = S.meterPanel;
+      brush();
+    }
   });
 
   function onVisibility() {

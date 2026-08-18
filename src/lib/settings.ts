@@ -15,6 +15,30 @@ export const SCREENS = ["panel", "lava", "meter"] as const;
 export type ScreenName = (typeof SCREENS)[number];
 
 /**
+ * What the instruments are set into. Vantablack leaves them floating with
+ * nothing around them but their own leaked light; brushed puts them in a
+ * seventies fascia.
+ */
+export const METER_PANELS = ["vanta", "brushed"] as const;
+
+/**
+ * The bulbs.
+ *
+ * Real lamps behind a dial are incandescent — warm white — and the colour a
+ * receiver is remembered by is the filter in front of them. These are those
+ * filters. `ramp` is the odd one out: it takes the panel's own palette instead,
+ * so the meter matches whatever the other two screens are wearing.
+ */
+export const METER_LAMPS = [
+  "warm",
+  "amber",
+  "red",
+  "blue",
+  "green",
+  "ramp",
+] as const;
+
+/**
  * Every number the panel is tuned by, and what each one is for.
  *
  * This half is pure data — the shape, the defaults, the bench's schema and the
@@ -94,6 +118,8 @@ export type Settings = {
   meterDamping: number;
   meterGlow: number;
   meterPeak: number;
+  meterPanel: (typeof METER_PANELS)[number];
+  meterLamp: (typeof METER_LAMPS)[number];
 
   // --- palette ---
   theme: ThemeName;
@@ -151,6 +177,8 @@ export const DEFAULTS: Settings = {
   meterDamping: 0.72,
   meterGlow: 0.55,
   meterPeak: 1.4,
+  meterPanel: "vanta",
+  meterLamp: "warm",
 
   theme: DEFAULT_THEME,
 };
@@ -198,7 +226,7 @@ type KeysOfType<T> = {
 
 export type NumberKey = KeysOfType<number>;
 export type BooleanKey = KeysOfType<boolean>;
-export type ChoiceKey = "theme" | "screen";
+export type ChoiceKey = "theme" | "screen" | "meterPanel" | "meterLamp";
 
 export const GROUPS: Group[] = [
   {
@@ -629,6 +657,20 @@ export const GROUPS: Group[] = [
         note: "As a fraction of critical. Below 1 the needle overshoots and settles back, which is what a real one does and most of why it looks alive. At 1 and above it creeps in and never passes the mark.",
       },
       {
+        kind: "choice",
+        key: "meterPanel",
+        label: "Fascia",
+        options: METER_PANELS,
+        note: "vanta leaves the instruments floating in nothing, lit only by what leaks past their own bezels · brushed sets them into aluminium.",
+      },
+      {
+        kind: "choice",
+        key: "meterLamp",
+        label: "Lamp",
+        options: METER_LAMPS,
+        note: "The filter in front of the bulb. warm is a bare incandescent; red, amber, blue and green are the dial colours these arrived in; ramp takes the panel's own palette instead.",
+      },
+      {
         kind: "number",
         key: "meterGlow",
         label: "Backlight",
@@ -701,6 +743,14 @@ export function cleanSettings(input: unknown): Partial<Settings> {
       }
     } else if (key === "screen") {
       if (typeof value === "string" && (SCREENS as readonly string[]).includes(value)) {
+        out[key] = value;
+      }
+    } else if (key === "meterPanel") {
+      if (typeof value === "string" && (METER_PANELS as readonly string[]).includes(value)) {
+        out[key] = value;
+      }
+    } else if (key === "meterLamp") {
+      if (typeof value === "string" && (METER_LAMPS as readonly string[]).includes(value)) {
         out[key] = value;
       }
     }

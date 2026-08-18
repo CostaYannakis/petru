@@ -43,7 +43,7 @@ export function useTheme() {
   // paper — the diffuser's fall-off is drawn in black, and black corners on
   // white read as dirt rather than as depth.
   const light =
-    settings.screen === "meter" ||
+    (settings.screen === "meter" && settings.meterPanel === "brushed") ||
     (settings.screen === "lava" && settings.lavaLight);
 
   useEffect(() => {

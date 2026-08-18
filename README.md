@@ -461,12 +461,33 @@ the *filter*, not the filament. So the ramp is mixed most of the way to warm
 white: enough that `ice` still lights cool and `ember` still lights amber, not so
 much that it looks like a coloured gel.
 
-The surround is brushed aluminium, and it earns its place: a backlight is only
-ever *relative*, so a lit face on a face-coloured background isn't lit, it's just
-pale. The panel sits a shade below the dial to give the glow something to be
-brighter than, and its horizontal grain is the strongest period cue in the
-picture. It's drawn once on resize — hundreds of random striations regenerated
-per frame would shimmer as well as being absurd.
+### The fascia, the screws and the lamp
+
+A backlight is only ever *relative*, so what the instruments are set into matters
+as much as the light itself: a lit face on a face-coloured background isn't lit,
+it's just pale.
+
+**Vantablack** is the default, and it's the strongest version — not near-black,
+not a dark gradient, because a gradient is still a surface. There is no surface.
+The instruments float, and the only thing in frame besides them is the light
+escaping their own bezels. **Brushed** is the alternative: seventies aluminium
+fascia, horizontal grain, drawn once on resize since hundreds of random
+striations regenerated per frame would shimmer as well as being absurd.
+
+Each instrument is bolted through its corners with **brass screws**. They're the
+detail that stops a drawn meter reading as drawn, partly because they catch light
+from a different direction than the dial does, and mostly because the slots are
+never lined up — a screw at a tidy angle looks like a graphic, and the same screw
+at some arbitrary angle looks like hardware someone did up by hand. So each one
+takes a fixed angle of its own. The overload lamp moved inboard under the top
+edge to make room, which is the better place for it anyway: on the dial where
+you're already looking, not out on the bezel where you aren't.
+
+The **lamp** is a choice. `warm` is a bare incandescent; `red`, `amber`, `blue`
+and `green` are the dial colours these arrived in; `ramp` takes the panel's own
+palette instead. Every one of them sits a long way toward white, because a
+saturated fill behind a dial reads as a coloured gel taped over the glass and
+never as a lit face.
 
 ## Tuning
 
