@@ -343,10 +343,26 @@ survives in between is the neck joining two blobs. It's done on opaque black
 rather than a transparent surface, because contrast on RGB is well defined
 everywhere and contrast on alpha is not.
 
-Colour is the same ramp as the panel, mapped bottom to top, so a blob two thirds
-up is the colour a bar two thirds up would be — the two screens are recognisably
-the same device. **Viscosity** is the hypnosis knob: high is slow and
-inevitable, low is water and reads as agitated.
+Colour is two points on the panel's ramp and nothing in between. Mapping it to
+height — the obvious move, and the first thing tried — is right for a meter and
+wrong for a lamp: it paints a rainbow up the glass and makes every blob change
+colour as it drifts, so the fluid reads as a gradient with shapes in front of it.
+A lamp is one substance lit from behind. So the ramp is sampled low for the wax
+and high for the glow inside it, and the panel's identity survives anyway —
+`neon` gives red wax with a yellow core, `ice` teal and pale white, `ember` amber
+and gold.
+
+The glow is the same blobs blurred but *not* thresholded, so its brightness is a
+real thickness map: one blob is warm in the middle, two lying across each other
+are brighter where they overlap. That is most of why it looks lit rather than
+painted, and it comes free from not throwing the soft edges away.
+
+Two knobs matter most. **Viscosity** is the hypnosis one: high is slow and
+inevitable, low is water and reads as agitated. **Kick** is how much a transient
+shoves the fluid over and above heating it — heat has too much thermal mass to
+show a beat, so a kick warms the floor and is gone before anything visibly moves.
+Kick is what makes one land. At 0 the lamp answers only the shape of a track and
+never its rhythm, which is a legitimate thing to want and not the default.
 
 ## Tuning
 

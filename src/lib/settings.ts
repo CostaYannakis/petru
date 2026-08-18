@@ -67,6 +67,7 @@ export type Settings = {
   lavaBuoyancy: number;
   lavaHeat: number;
   lavaSize: number;
+  lavaKick: number;
   lavaGoo: number;
 
   // --- palette ---
@@ -115,6 +116,7 @@ export const DEFAULTS: Settings = {
   lavaBuoyancy: 1,
   lavaHeat: 1,
   lavaSize: 0.14,
+  lavaKick: 1,
   lavaGoo: 24,
 
   theme: DEFAULT_THEME,
@@ -516,6 +518,15 @@ export const GROUPS: Group[] = [
         max: 3,
         step: 0.05,
         note: "How much the room stokes the bulb. At 0 the lamp still runs, on its own slow convection.",
+      },
+      {
+        kind: "number",
+        key: "lavaKick",
+        label: "Kick",
+        min: 0,
+        max: 3,
+        step: 0.05,
+        note: "How hard a transient shoves the fluid, over and above heating it. Heat alone has too much thermal mass to show a beat; this is what makes one land. At 0 the lamp only ever responds to the shape of a track, never its rhythm.",
       },
       {
         kind: "number",

@@ -68,11 +68,14 @@ function setup(
 ) {
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  // Where the blobs are drawn, and where they are melted together.
+  // Where the blobs are drawn, where they are melted together, and where the
+  // glow inside them is built.
   const field = document.createElement("canvas");
   const fctx = field.getContext("2d", { alpha: false });
   const goo = document.createElement("canvas");
   const gctx = goo.getContext("2d", { alpha: false });
+  const core = document.createElement("canvas");
+  const cctx = core.getContext("2d", { alpha: false });
   const canBlur = typeof ctx.filter === "string";
 
   let W = 0;
@@ -80,7 +83,6 @@ function setup(
   let fw = 0;
   let fh = 0;
   let dpr = 1;
-  let lava: CanvasGradient | null = null;
 
   const bands = new Float32Array(BANDS);
   let blobs: Blob[] = [];
@@ -92,30 +94,39 @@ function setup(
   let treble = 0;
   let level = 0;
 
+  /**
+   * Bass measured again, much more slowly, purely to have something to compare
+   * the fast reading against. Heat is the right model for the *shape* of a
+   * track and hopeless for its *rhythm*: thermal mass is exactly the property
+   * that stops a beat arriving, so a kick warms the fluid and is gone before
+   * anything visibly moves. `pulse` is the difference between the two readings
+   * — how much louder the bass is right now than it has been — and that is what
+   * a transient actually is.
+   */
+  let bassSlow = 0;
+  let pulse = 0;
+
   let t = 0;
   let raf = 0;
   let last = 0;
   let running = true;
 
-  /**
-   * The ramp as a vertical gradient, sampled from the same lookup table the LED
-   * panel indexes per row — so a blob two thirds up is the colour a bar two
-   * thirds up would be.
-   */
-  function buildGradient() {
-    // Built on the context that paints it. A CanvasGradient is portable in
-    // practice, but there is no reason to lean on that when the surface it
-    // belongs to is right here.
-    if (!gctx) return;
-
-    const g = gctx.createLinearGradient(0, H, 0, 0);
-    const stops = 10;
-    for (let i = 0; i <= stops; i++) {
-      const at = i / stops;
-      g.addColorStop(at, colours.full[Math.round(at * 255)]);
-    }
-    lava = g;
-  }
+/**
+ * Two points on the ramp, and only two.
+ *
+ * The first version coloured the fluid by height, straight off the panel's
+ * ramp, which is right for a meter and wrong for a lamp: it painted a rainbow
+ * up the glass and made every blob change colour as it drifted, which reads as
+ * a gradient with blobs in front of it rather than as wax.
+ *
+ * A lamp is one substance, lit from behind — a body colour and a hotter middle
+ * where more of it is stacked up. So the ramp is sampled at exactly two points:
+ * low for the wax, high for the glow inside it. The panel's identity survives,
+ * because those two points still come from its ramp — neon gives red wax with a
+ * yellow core, ice gives teal and pale white, ember amber and gold.
+ */
+const WAX = 0.32;
+const GLOW = 0.78;
 
   function seed() {
     const { lavaBlobs } = settings();
@@ -158,8 +169,9 @@ function setup(
     field.height = fh;
     goo.width = fw;
     goo.height = fh;
+    core.width = fw;
+    core.height = fh;
 
-    buildGradient();
     seed();
   }
 
@@ -173,6 +185,8 @@ function setup(
     bass += (0.18 + breath * 0.16 - bass) * 0.02;
     treble += (0.06 - treble) * 0.02;
     level += (0.16 - level) * 0.02;
+    bassSlow += (bass - bassSlow) * 0.01;
+    pulse *= 0.94;
   }
 
   function listen() {
@@ -202,9 +216,20 @@ function setup(
     all /= BANDS;
 
     // Rises quickly, falls slowly. Heat has thermal mass; so should this.
-    bass += (low - bass) * (low > bass ? 0.12 : 0.03);
-    treble += (high - treble) * (high > treble ? 0.2 : 0.06);
-    level += (all - level) * (all > level ? 0.1 : 0.03);
+    // Fast enough to see a kick arrive, and a slow twin to measure it against.
+    bass += (low - bass) * (low > bass ? 0.35 : 0.06);
+    treble += (high - treble) * (high > treble ? 0.3 : 0.08);
+    level += (all - level) * (all > level ? 0.12 : 0.03);
+    bassSlow += (low - bassSlow) * 0.012;
+
+    // Only the excess counts. Steady loud bass raises the slow reading with it
+    // and stops registering, which is right — a held note is not an event.
+    const over = bass - bassSlow * 1.25 - 0.02;
+    const hit = over > 0 ? clamp(over * 5, 0, 1) : 0;
+
+    // Snap up, ring out. The decay is what turns an instant into a swell that
+    // the fluid has time to answer.
+    pulse = hit > pulse ? hit : pulse + (hit - pulse) * 0.08;
   }
 
   function step(dt: number) {
@@ -218,8 +243,9 @@ function setup(
     // through it.
     const drag = Math.pow(S.lavaViscosity, dt * 60);
 
-    // The bulb. Sound is heat, and heat is the only thing sound does here.
-    const bulb = 0.28 + bass * S.lavaHeat;
+    // The bulb. Bass warms the floor, and the pulse flares it — a kick is a
+    // burst from the element rather than a steady rise in its temperature.
+    const bulb = 0.28 + (bass + pulse * 1.6) * S.lavaHeat;
 
     for (const b of blobs) {
       const r = base * b.scale;
@@ -235,6 +261,17 @@ function setup(
       b.heat -= dt * 0.12; // and a little to the fluid all the way up
       b.heat = clamp(b.heat, 0, 1);
 
+      // The kick itself, felt through the fluid rather than at the element.
+      // Weighted toward the bottom of the lamp, so a beat lifts what is sitting
+      // on the floor and merely nudges what is already halfway up — the shape a
+      // real surge has, and the reason it reads as a swell travelling upward
+      // instead of the whole picture jumping at once.
+      if (pulse > 0.01) {
+        const low = clamp(b.y / H, 0, 1);
+        b.vy -= pulse * S.lavaKick * 520 * low * dt;
+        b.heat += pulse * S.lavaKick * 0.5 * low * dt;
+      }
+
       // Buoyancy against weight, balanced so a blob at half heat is very nearly
       // neutral and simply drifts. That is where the lamp spends most of its
       // time and where it looks best.
@@ -248,6 +285,12 @@ function setup(
           Math.sin(t * 0.19 + b.seed * 2.3) * 0.4) *
         26 *
         dt;
+
+      // Treble is surface detail, so it goes in sideways and fast. It never
+      // lifts anything — the lamp would stop reading as gravity-bound if the
+      // top end could push things up.
+      b.vx +=
+        Math.sin(t * 5.3 + b.seed * 3.1) * treble * 240 * S.lavaKick * dt;
 
       b.vx *= drag;
       b.vy *= drag;
@@ -314,7 +357,7 @@ function setup(
 
   function draw() {
     const S = settings();
-    if (!fctx || !gctx || !lava) return;
+    if (!fctx || !gctx || !cctx) return;
 
     const base = Math.min(W, H) * S.lavaSize;
 
@@ -349,7 +392,7 @@ function setup(
     // A pool of heat at the base, so the bulb is visibly where the sound goes
     // in rather than an invisible rule the blobs obey.
     const glow = fctx.createRadialGradient(W / 2, H, 0, W / 2, H, H * 0.42);
-    const heat = clamp(0.1 + bass * S.lavaHeat * 0.5, 0, 0.85);
+    const heat = clamp(0.1 + (bass + pulse * 1.4) * S.lavaHeat * 0.5, 0, 0.9);
     glow.addColorStop(0, `rgba(255,255,255,${heat})`);
     glow.addColorStop(1, "rgba(255,255,255,0)");
     fctx.fillStyle = glow;
@@ -365,14 +408,35 @@ function setup(
     gctx.drawImage(field, 0, 0);
     gctx.filter = "none";
 
-    // White silhouette times the ramp: black stays black, and what is lit takes
-    // its colour from how high up the lamp it sits.
+    // The wax. A flat colour low on the ramp, multiplied through the hard
+    // silhouette so black stays black and the shape takes one colour — a lamp
+    // is one substance, not a gradient.
     gctx.globalCompositeOperation = "multiply";
-    gctx.setTransform(SCALE, 0, 0, SCALE, 0, 0);
-    gctx.fillStyle = lava;
-    gctx.fillRect(0, 0, W, H);
-    gctx.setTransform(1, 0, 0, 1, 0, 0);
+    gctx.fillStyle = colours.body[Math.round(WAX * 255)];
+    gctx.fillRect(0, 0, fw, fh);
     gctx.globalCompositeOperation = "source-over";
+
+    // The glow inside it. The same blobs blurred but *not* thresholded, so the
+    // brightness is a genuine thickness map: one blob is warm in the middle,
+    // and two lying across each other are brighter still where they overlap.
+    // That is the whole reason a lava lamp looks lit rather than painted, and
+    // it comes free from not throwing the soft edges away.
+    cctx.setTransform(1, 0, 0, 1, 0, 0);
+    cctx.globalCompositeOperation = "source-over";
+    if (canBlur) {
+      cctx.filter = `blur(${Math.max(2, base * SCALE * 0.22)}px)`;
+    }
+    cctx.drawImage(field, 0, 0);
+    cctx.filter = "none";
+
+    cctx.globalCompositeOperation = "multiply";
+    // The core climbs the ramp as the room gets louder, so the lamp runs hotter
+    // through a loud passage. Colour answers the music without any of it
+    // becoming a chart.
+    const glowAt = clamp(GLOW + (level * 0.1 + pulse * 0.12), 0, 1);
+    cctx.fillStyle = colours.full[Math.round(glowAt * 255)];
+    cctx.fillRect(0, 0, fw, fh);
+    cctx.globalCompositeOperation = "source-over";
 
     // --- onto the glass -----------------------------------------------------
     ctx.globalCompositeOperation = "source-over";
@@ -384,11 +448,16 @@ function setup(
     ctx.globalCompositeOperation = "lighter";
     ctx.drawImage(goo, 0, 0, W, H);
 
+    ctx.save();
+    ctx.globalAlpha = 0.55;
+    ctx.drawImage(core, 0, 0, W, H);
+    ctx.restore();
+
     if (canBlur) {
       ctx.save();
       ctx.filter = `blur(${Math.max(6, base * 0.3)}px)`;
-      ctx.globalAlpha = clamp(S.bloom, 0, 1.5) * 0.6;
-      ctx.drawImage(goo, 0, 0, W, H);
+      ctx.globalAlpha = clamp(S.bloom, 0, 1.5) * 0.5;
+      ctx.drawImage(core, 0, 0, W, H);
       ctx.filter = "none";
       ctx.restore();
     }
