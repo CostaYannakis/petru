@@ -165,6 +165,34 @@ export function nextTheme(name: ThemeName): ThemeName {
   return THEME_NAMES[(i + 1) % THEME_NAMES.length];
 }
 
+/**
+ * The ramps are baked to CSS strings for the render loops, which is right for
+ * the panel — it never does anything to a colour but name it. The other screens
+ * do: a lit meter face and a sheet of paper are both the ramp blended most of
+ * the way to something else, and that needs the numbers back.
+ */
+export function parseRgb(css: string): [number, number, number] {
+  const parts = css.match(/\d+/g);
+  if (!parts || parts.length < 3) return [255, 255, 255];
+  return [Number(parts[0]), Number(parts[1]), Number(parts[2])];
+}
+
+export function mixRgb(
+  a: [number, number, number],
+  b: [number, number, number],
+  k: number,
+): [number, number, number] {
+  return [
+    Math.round(a[0] + (b[0] - a[0]) * k),
+    Math.round(a[1] + (b[1] - a[1]) * k),
+    Math.round(a[2] + (b[2] - a[2]) * k),
+  ];
+}
+
+export function rgb([r, g, b]: [number, number, number], alpha = 1) {
+  return alpha >= 1 ? `rgb(${r},${g},${b})` : `rgba(${r},${g},${b},${alpha})`;
+}
+
 const LUT_SIZE = 256;
 
 function lerp(a: number, b: number, t: number) {

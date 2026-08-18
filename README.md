@@ -432,9 +432,41 @@ The mic is mono, so more than one meter splits the spectrum low to high rather
 than showing you the same needle twice. Two reads like the pair off a deck while
 still telling you something.
 
-The face is cream and lit from behind, because that's what these were. The ramp
-survives in the danger arc and the lamp behind the dial — a meter face is ivory
-in every palette, the same way ferrofluid is black in all of them.
+### The backlight
+
+The face is lit from behind, because that's what these were, and getting that
+right took two corrections that both sound backwards.
+
+**It has to add light.** Tinting the face — multiplying it toward the lamp
+colour — is the obvious move and is exactly wrong: multiply can only make the
+dial *darker*, which is a gel taped over the glass rather than a bulb behind it.
+
+**And the unlit face has to get darker as the lamp comes up.** Ivory is already
+within a few percent of white, so light added to it has nowhere to go: the pools
+clip to flat white and the dial reads as a white rectangle rather than a lit one.
+Dropping the ambient gives the lamp somewhere to go — and it's also just true,
+since you only ever see a backlight in a room dim enough to have stopped lighting
+the face for it. The numbers were checked across the whole knob rather than
+eyeballed; nothing clips at any setting.
+
+Two pools rather than one, low and to the sides where the bulbs physically sit,
+then a flat wash over the top because there's a diffuser between them and the
+face. The unevenness that survives that is the whole look. A little light escapes
+past the bezel onto the fascia, because nothing seals perfectly, and the leak is
+what stops the meter reading as a bright rectangle pasted onto a photograph.
+
+The lamp isn't the ramp's own colour. A bulb behind a dial is incandescent, and
+incandescent is warm white — what people remember as the colour of a Sansui is
+the *filter*, not the filament. So the ramp is mixed most of the way to warm
+white: enough that `ice` still lights cool and `ember` still lights amber, not so
+much that it looks like a coloured gel.
+
+The surround is brushed aluminium, and it earns its place: a backlight is only
+ever *relative*, so a lit face on a face-coloured background isn't lit, it's just
+pale. The panel sits a shade below the dial to give the glow something to be
+brighter than, and its horizontal grain is the strongest period cue in the
+picture. It's drawn once on resize — hundreds of random striations regenerated
+per frame would shimmer as well as being absurd.
 
 ## Tuning
 

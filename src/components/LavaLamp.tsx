@@ -4,8 +4,11 @@ import { useEffect, useRef, type RefObject } from "react";
 import type { MicSource } from "@/lib/mic";
 import {
   DEFAULT_THEME,
+  mixRgb,
   PANEL_BLACK,
+  parseRgb,
   ramp,
+  rgb,
   type Ramp,
   type ThemeName,
 } from "@/lib/palette";
@@ -89,21 +92,6 @@ const GLOW = 0.78;
  * survives in the paper it sits on and in the sheen along the top of each mass,
  * and nowhere else — a black liquid is black in every palette.
  */
-function parseRgb(css: string): [number, number, number] {
-  const parts = css.match(/\d+/g);
-  if (!parts || parts.length < 3) return [255, 255, 255];
-  return [Number(parts[0]), Number(parts[1]), Number(parts[2])];
-}
-
-function mix(
-  a: [number, number, number],
-  b: [number, number, number],
-  k: number,
-) {
-  const at = (i: number) => Math.round(a[i] + (b[i] - a[i]) * k);
-  return `rgb(${at(0)},${at(1)},${at(2)})`;
-}
-
 const WHITE: [number, number, number] = [255, 255, 255];
 
 function setup(
@@ -137,7 +125,7 @@ function setup(
   // The paper the pale version is printed on: the ramp, almost entirely washed
   // out. Enough tint that `ice` and `ember` are still telling you apart, not so
   // much that it stops reading as white.
-  const ground = mix(parseRgb(colours.full[128]), WHITE, 0.9);
+  const ground = rgb(mixRgb(parseRgb(colours.full[128]), WHITE, 0.9));
   const sheen = colours.full[Math.round(GLOW * 255)];
 
   // Smoothed energies. The lamp answers the shape of the last half second and

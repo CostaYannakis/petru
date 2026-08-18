@@ -2,7 +2,15 @@
 
 import { useEffect, useRef, type RefObject } from "react";
 import type { MicSource } from "@/lib/mic";
-import { DEFAULT_THEME, ramp, type Ramp, type ThemeName } from "@/lib/palette";
+import {
+  DEFAULT_THEME,
+  mixRgb,
+  parseRgb,
+  ramp,
+  rgb,
+  type Ramp,
+  type ThemeName,
+} from "@/lib/palette";
 import { settings, subscribeSettings } from "@/lib/settings-store";
 
 /**
@@ -55,8 +63,23 @@ const OVER = 0.72;
 /** How far the needle swings either side of vertical. */
 const SWEEP = (52 * Math.PI) / 180;
 
-const IVORY = "#efe7d6";
+const IVORY = "rgb(239,231,214)";
 const INK = "#171310";
+
+/**
+ * The colour of the bulbs behind the dial.
+ *
+ * Not the ramp's own colour. A lamp behind a face is an incandescent bulb, and
+ * an incandescent bulb is warm white — the colour people remember from a Sansui
+ * is the *filter* in front of it, not the filament. So the ramp is mixed most
+ * of the way to a warm white: enough that `ice` still lights cool and `ember`
+ * still lights amber, not so much that it reads as a coloured gel taped over
+ * the glass.
+ */
+const FILAMENT: [number, number, number] = [255, 232, 196];
+
+/** How much of the ramp survives into the lamp. */
+const TINT = 0.34;
 
 function clamp(v: number, lo: number, hi: number) {
   return v < lo ? lo : v > hi ? hi : v;
@@ -87,6 +110,15 @@ function setup(
   const bands = new Float32Array(BANDS);
   let needles: Needle[] = [];
 
+  // Warm white with the ramp stirred in, and a paler core for the middle of
+  // each pool — a filament is whiter at its centre than at its edges.
+  const lampRgb = mixRgb(parseRgb(colours.full[Math.round(0.6 * 255)]), FILAMENT, 1 - TINT);
+  const lampHot = mixRgb(lampRgb, [255, 255, 255], 0.45);
+
+  /** The brushed panel the instruments are set into, drawn once. */
+  const panel = document.createElement("canvas");
+  const pctx = panel.getContext("2d");
+
   let t = 0;
   let raf = 0;
   let last = 0;
@@ -104,7 +136,45 @@ function setup(
     canvas.style.height = `${H}px`;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
+    brush();
     fit();
+  }
+
+  /**
+   * The surround: brushed aluminium, which is what these were bolted to.
+   *
+   * It matters more than it sounds. A backlight is only ever *relative* — a lit
+   * face against a face-coloured background is not lit, it is just pale. The
+   * panel is a shade down from the dial so the glow has something to be
+   * brighter than, and it carries the horizontal grain of a brushed fascia,
+   * which is the single strongest period cue in the whole picture.
+   *
+   * Drawn once on resize. The striations are random and there are hundreds of
+   * them; regenerating that every frame would be absurd, and it would also
+   * shimmer, since the grain would be different each time.
+   */
+  function brush() {
+    if (!pctx) return;
+
+    panel.width = Math.max(1, Math.round(W * dpr));
+    panel.height = Math.max(1, Math.round(H * dpr));
+    pctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const base = pctx.createLinearGradient(0, 0, 0, H);
+    base.addColorStop(0, "#cdc7ba");
+    base.addColorStop(0.5, "#bdb6a7");
+    base.addColorStop(1, "#a8a091");
+    pctx.fillStyle = base;
+    pctx.fillRect(0, 0, W, H);
+
+    const lines = Math.round(H * 1.4);
+    for (let i = 0; i < lines; i++) {
+      const y = Math.random() * H;
+      const a = Math.random() * 0.05;
+      pctx.fillStyle =
+        Math.random() < 0.5 ? `rgba(255,255,255,${a})` : `rgba(0,0,0,${a})`;
+      pctx.fillRect(0, y, W, Math.random() < 0.15 ? 1.5 : 0.7);
+    }
   }
 
   function fit() {
@@ -209,10 +279,25 @@ function setup(
     ctx.save();
 
     // --- the plate ---------------------------------------------------------
+    //
+    // The unlit face darkens as the backlight comes up, which sounds backwards
+    // and is the only way this works. Ivory is already within a few percent of
+    // white, so light added to it has nowhere to go: the pools clip flat and
+    // the dial looks like a white rectangle rather than a lit one. Dropping the
+    // ambient gives the lamp room, and it is also just true — you only ever see
+    // a backlight in a room dim enough to have stopped lighting the face for it.
+    const dim = 1 - clamp(S.meterGlow, 0, 1) * 0.58;
+    const shade = (c: [number, number, number]) =>
+      rgb([
+        Math.round(c[0] * dim),
+        Math.round(c[1] * dim),
+        Math.round(c[2] * dim),
+      ]);
+
     const plate = ctx.createLinearGradient(0, fy, 0, fy + fh);
-    plate.addColorStop(0, "#fbf6ea");
-    plate.addColorStop(0.55, IVORY);
-    plate.addColorStop(1, "#ddd2bd");
+    plate.addColorStop(0, shade([251, 246, 234]));
+    plate.addColorStop(0.55, shade(parseRgb(IVORY)));
+    plate.addColorStop(1, shade([221, 210, 189]));
     ctx.fillStyle = plate;
     ctx.beginPath();
     if (typeof ctx.roundRect === "function") {
@@ -222,16 +307,34 @@ function setup(
     }
     ctx.fill();
 
-    // The lamp behind the dial, pooling up from the bottom where the bulb is.
+    // The backlight.
+    //
+    // It has to *add* light. Tinting the face — multiplying it toward the lamp
+    // colour — is the obvious move and it is exactly wrong: it can only make
+    // the dial darker, which is a gel taped over the glass rather than a bulb
+    // behind it. Lit means brighter than it was.
+    //
+    // Two pools rather than one, low and to the sides, because that is where
+    // the bulbs physically sit; then a flat wash over the top, because there is
+    // a diffuser between them and the face and no real meter shows you two
+    // discrete spots. The unevenness that survives is the whole look.
     if (S.meterGlow > 0) {
       ctx.save();
       ctx.clip();
-      const lamp = ctx.createRadialGradient(px, py, 0, px, py, R * 1.5);
-      lamp.addColorStop(0, colours.full[Math.round(0.72 * 255)]);
-      lamp.addColorStop(1, "rgba(255,255,255,0)");
-      ctx.globalCompositeOperation = "multiply";
-      ctx.globalAlpha = S.meterGlow * 0.5;
-      ctx.fillStyle = lamp;
+      ctx.globalCompositeOperation = "lighter";
+
+      for (const at of [0.27, 0.73]) {
+        const lx = fx + fw * at;
+        const ly = fy + fh * 0.9;
+        const pool = ctx.createRadialGradient(lx, ly, 0, lx, ly, fw * 0.62);
+        pool.addColorStop(0, rgb(lampHot, 0.38 * S.meterGlow));
+        pool.addColorStop(0.45, rgb(lampRgb, 0.18 * S.meterGlow));
+        pool.addColorStop(1, rgb(lampRgb, 0));
+        ctx.fillStyle = pool;
+        ctx.fillRect(fx, fy, fw, fh);
+      }
+
+      ctx.fillStyle = rgb(lampRgb, 0.12 * S.meterGlow);
       ctx.fillRect(fx, fy, fw, fh);
       ctx.restore();
     }
@@ -384,17 +487,36 @@ function setup(
     }
     ctx.stroke();
 
+    // A little light escaping past the bezel onto the fascia. Nothing seals
+    // perfectly, and the leak is what stops the meter reading as a bright
+    // rectangle pasted onto a photograph of a panel.
+    if (S.meterGlow > 0) {
+      ctx.globalCompositeOperation = "lighter";
+      const leak = ctx.createRadialGradient(
+        px,
+        fy + fh * 0.5,
+        Math.min(fw, fh) * 0.32,
+        px,
+        fy + fh * 0.5,
+        Math.max(fw, fh) * 0.72,
+      );
+      leak.addColorStop(0, rgb(lampRgb, 0.16 * S.meterGlow));
+      leak.addColorStop(1, rgb(lampRgb, 0));
+      ctx.fillStyle = leak;
+      ctx.fillRect(x, y, w, h);
+    }
+
     ctx.restore();
   }
 
   function draw() {
-    // The surround is the brushed panel the instruments are set into, which is
-    // the one part of this that is allowed to be nearly white.
-    const back = ctx.createLinearGradient(0, 0, 0, H);
-    back.addColorStop(0, "#e9e3d6");
-    back.addColorStop(1, "#cfc6b4");
-    ctx.fillStyle = back;
-    ctx.fillRect(0, 0, W, H);
+    ctx.globalCompositeOperation = "source-over";
+    if (pctx) {
+      ctx.drawImage(panel, 0, 0, W, H);
+    } else {
+      ctx.fillStyle = "#bdb6a7";
+      ctx.fillRect(0, 0, W, H);
+    }
 
     const n = needles.length;
     const cw = W / n;
