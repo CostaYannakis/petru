@@ -161,33 +161,19 @@ export function resetSettings() {
   notify();
 }
 
-// --- startup ----------------------------------------------------------------
-
-if (typeof window !== "undefined") {
-  try {
-    const stored = localStorage.getItem(KEY);
-    if (stored) current = { ...current, ...cleanSettings(JSON.parse(stored)) };
-  } catch {
-    // Unparseable. Defaults it is.
-  }
-
-  // So the bench can sit in one window and the panel in another, on a second
-  // screen, and the sliders still drive it — with no round trip at all.
-  if ("BroadcastChannel" in window) {
-    channel = new BroadcastChannel(KEY);
-    channel.addEventListener("message", (event) =>
-      adopt(cleanSettings(event.data)),
-    );
-  }
-
-  void poll();
-  document.addEventListener("visibilitychange", () => {
-    if (!document.hidden) void poll();
-  });
-}
-
 let pollTimer: ReturnType<typeof setTimeout> | undefined;
 
+/**
+ * Ask the shared store what it has, adopt it, and book the next ask.
+ *
+ * Defined above the startup block below on purpose, and `pollTimer` with it.
+ * `poll` is a hoisted declaration and would happily be *called* from anywhere,
+ * but `pollTimer` is a `let` — calling poll() before that line has run puts its
+ * first statement in the temporal dead zone, which throws inside an async
+ * function, which becomes a rejected promise, which a bare call discards
+ * without a word. The symptom is not an error; it is a store that silently
+ * never syncs.
+ */
 async function poll() {
   clearTimeout(pollTimer);
   if (document.hidden) return;
@@ -213,6 +199,31 @@ async function poll() {
   // Keep asking even when there is no shared store: one may appear the moment
   // the environment gains the keys, without the page being reloaded.
   pollTimer = setTimeout(poll, POLL_MS);
+}
+
+// --- startup ----------------------------------------------------------------
+
+if (typeof window !== "undefined") {
+  try {
+    const stored = localStorage.getItem(KEY);
+    if (stored) current = { ...current, ...cleanSettings(JSON.parse(stored)) };
+  } catch {
+    // Unparseable. Defaults it is.
+  }
+
+  // So the bench can sit in one window and the panel in another, on a second
+  // screen, and the sliders still drive it — with no round trip at all.
+  if ("BroadcastChannel" in window) {
+    channel = new BroadcastChannel(KEY);
+    channel.addEventListener("message", (event) =>
+      adopt(cleanSettings(event.data)),
+    );
+  }
+
+  void poll();
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) void poll();
+  });
 }
 
 // --- React ------------------------------------------------------------------
