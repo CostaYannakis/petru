@@ -1,24 +1,19 @@
-"use client";
-
-import { useCallback, useSyncExternalStore } from "react";
 import { DEFAULT_THEME, THEME_NAMES, type ThemeName } from "@/lib/palette";
 
 /**
- * Every number the panel is tuned by, in one place and live.
+ * Every number the panel is tuned by, and what each one is for.
+ *
+ * This half is pure data — the shape, the defaults, the bench's schema and the
+ * validator. No React and no browser, so the route handlers can import it to
+ * check what arrives over the wire against the same definitions the dashboard
+ * draws from. The live store that reads and writes these lives next door in
+ * settings-store.ts.
  *
  * These were consts scattered through LedPanel.tsx and mic.ts, which is the
  * right place for a value you set once and the wrong place for a value you are
- * still deciding. They now live here and are read on the frame they are used —
- * `settings()` in the render loop, never captured in a closure — so moving a
- * slider on /admin is visible on the panel before the finger is off it.
- *
- * The defaults below are exactly what the constants were, so a fresh checkout
- * behaves identically to before this file existed. `reset` is therefore always
- * a way back to the tuning that shipped.
- *
- * State lives outside React because the consumer is a requestAnimationFrame
- * loop, not a component. React reads the same store through
- * `useSyncExternalStore`, so the dashboard re-renders and the panel doesn't.
+ * still deciding. The defaults below are exactly what those constants were, so
+ * a fresh checkout behaves identically to before this file existed, and reset
+ * is always a way back to the tuning that shipped.
  */
 
 export type Settings = {
@@ -465,39 +460,26 @@ export const GROUPS: Group[] = [
   },
 ];
 
-// --- the store ---------------------------------------------------------------
 
-const KEY = "petru.settings";
-
-let current: Settings = { ...DEFAULTS };
-
-const listeners = new Set<() => void>();
-let channel: BroadcastChannel | null = null;
+// --- validation --------------------------------------------------------------
 
 /**
- * The live settings, for code that runs outside React.
+ * Keep what is recognisable and drop the rest.
  *
- * Call it *inside* the frame rather than hoisting the result: the object is
- * replaced on every change, and a reference captured when the panel was set up
- * would go on describing the tuning it started with.
+ * The same function guards three doors, which is the reason it lives out here
+ * with the schema rather than beside any one of them: a blob out of
+ * localStorage that predates a renamed key, a message from another tab, and a
+ * request body arriving at PUT /api/settings from anywhere at all. Values are
+ * checked against `DEFAULTS` by type and the ramp against the ones that exist,
+ * so nothing reaches the render loop that would make it draw something
+ * undefined.
+ *
+ * Deliberately not range-clamped. The bench's minimums and maximums are there
+ * to make the sliders usable, not to say what the panel can survive, and a
+ * value typed into the number box past the end of its slider is a legitimate
+ * thing to want.
  */
-export function settings() {
-  return current;
-}
-
-export function subscribeSettings(listener: () => void) {
-  listeners.add(listener);
-  return () => {
-    listeners.delete(listener);
-  };
-}
-
-function notify() {
-  for (const listener of listeners) listener();
-}
-
-/** Drop anything unrecognised, so an old or hand-edited blob can't poison the panel. */
-function clean(input: unknown): Partial<Settings> {
+export function cleanSettings(input: unknown): Partial<Settings> {
   if (!input || typeof input !== "object") return {};
 
   const out: Record<string, unknown> = {};
@@ -517,72 +499,4 @@ function clean(input: unknown): Partial<Settings> {
   }
 
   return out as Partial<Settings>;
-}
-
-function persist() {
-  try {
-    localStorage.setItem(KEY, JSON.stringify(current));
-  } catch {
-    // Private mode, or a full quota. The settings still work for this session.
-  }
-}
-
-/** Apply without echoing back out, for changes that arrived from another tab. */
-function adopt(patch: Partial<Settings>) {
-  current = { ...current, ...patch };
-  notify();
-}
-
-export function setSetting<K extends keyof Settings>(key: K, value: Settings[K]) {
-  if (current[key] === value) return;
-
-  current = { ...current, [key]: value };
-  persist();
-  channel?.postMessage({ [key]: value });
-  notify();
-}
-
-export function resetSettings() {
-  current = { ...DEFAULTS };
-  persist();
-  channel?.postMessage(DEFAULTS);
-  notify();
-}
-
-if (typeof window !== "undefined") {
-  try {
-    const stored = localStorage.getItem(KEY);
-    if (stored) current = { ...current, ...clean(JSON.parse(stored)) };
-  } catch {
-    // Unparseable. Defaults it is.
-  }
-
-  // So the dashboard can sit in one window and the panel in another, on a
-  // second screen, and the sliders still drive it.
-  if ("BroadcastChannel" in window) {
-    channel = new BroadcastChannel(KEY);
-    channel.addEventListener("message", (event) => adopt(clean(event.data)));
-  }
-}
-
-// --- React ------------------------------------------------------------------
-
-/**
- * Server-rendered markup is always the defaults, because localStorage does not
- * exist there; the store syncs on the client immediately after.
- */
-export function useSettings() {
-  const value = useSyncExternalStore(
-    subscribeSettings,
-    settings,
-    () => DEFAULTS,
-  );
-
-  const set = useCallback(
-    <K extends keyof Settings>(key: K, next: Settings[K]) =>
-      setSetting(key, next),
-    [],
-  );
-
-  return { settings: value, set, reset: resetSettings };
 }

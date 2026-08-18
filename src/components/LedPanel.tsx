@@ -9,7 +9,7 @@ import {
   type Ramp,
   type ThemeName,
 } from "@/lib/palette";
-import { settings, subscribeSettings } from "@/lib/settings";
+import { settings, subscribeSettings } from "@/lib/settings-store";
 
 /**
  * A dot-matrix LED panel, the kind bolted into an audio visualiser.
@@ -34,10 +34,11 @@ const SANS = `ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, 
 
 /**
  * Everything the panel is tuned by now lives in src/lib/settings.ts, along with
- * the reasoning that used to sit here as comments on each constant. It is read
- * per frame rather than captured at setup, so /admin can move a value and see
- * it on the panel immediately. The defaults there are exactly the constants
- * this file used to hold.
+ * the reasoning that used to sit here as comments on each constant, and is read
+ * through the store in settings-store.ts. Read per frame rather than captured at
+ * setup, so a value moved on /admin — on this machine or on the deployment —
+ * shows up without the panel being rebuilt. The defaults there are exactly the
+ * constants this file used to hold.
  */
 
 function clamp(v: number, lo: number, hi: number) {

@@ -326,14 +326,50 @@ panel running in a box, with every setting beside it. Not a simplified preview �
 the same engine, the same microphone path, the same ballistics — because tuning
 against an approximation is worse than not tuning at all.
 
-Changes are broadcast to every other tab on the origin, so the device can run
-full-screen on a second screen while you work on this one. They persist in
-`localStorage`, and **Reset all** puts back the tuning that shipped, which is
-exactly the constants this file used to describe.
+Changes reach three places, in widening circles:
 
-**`/admin` is development only.** In a production build the route is not there
-at all — a panel left running in a room has no business carrying a page that can
-retune it.
+1. **This page**, immediately — the preview is driven by the same store, so a
+   slider is not a form field that gets submitted, it is the thing itself moving.
+2. **Every other tab on the origin**, over a `BroadcastChannel`, so the device
+   can run full-screen on a second screen while you work on this one. No round
+   trip at all.
+3. **The deployed panel**, where a shared store is configured — see
+   [Live](#live).
+
+They persist in `localStorage`, and **Reset all** puts back the tuning that
+shipped, which is exactly the constants this file used to describe.
+
+### Live
+
+Without a shared store the bench is local: changes stay in your browser, the
+deployed panel keeps running the defaults compiled into it, and the bench says
+so at the top of the page. That is what a fresh clone does.
+
+With one — Upstash Redis, provisioned through the Vercel Marketplace — `/admin`
+on the deployed origin becomes a remote control. Writes are debounced and sent
+to `PUT /api/settings`; every panel polls `GET /api/settings` every four seconds
+and adopts what it finds.
+
+Four seconds rather than as fast as possible, deliberately. A panel left running
+is a poll that never stops, and at one second that is eighty thousand reads a
+day against a free key-value quota for no benefit anyone can see. A hidden tab
+stops asking entirely, so a phone in a pocket costs nothing.
+
+The read side is public, because the thing reading it is a display in a room
+with no session and no reason to have one, and there is nothing secret in a set
+of slider positions. The write side is not.
+
+### The lock
+
+`ADMIN_PASSWORD` gates both `/admin` and `PUT /api/settings`. The cookie proving
+you knew it is signed with a key derived from the password itself, so changing
+the password ends every session already open, with nothing to remember to revoke.
+
+Locally, with no password set, the bench is simply open — a fresh clone can tune
+without configuring anything. **On a deployed origin an unset password means the
+bench is not there at all**: `/admin` 404s and the write route refuses. A missing
+password on a public origin can only safely be read as "no bench", never as "no
+lock".
 
 ### Where to reach first
 
@@ -343,7 +379,8 @@ how many steps the amplitude scale has, since every row is one step. Then the
 ramp, which is the panel's whole identity — see [the palette](#the-palette).
 
 Defaults still live in code, so once a value is settled it belongs in
-`DEFAULTS`. **Copy JSON** on the bench gives you the current set to paste over.
+`DEFAULTS` — the shared store holds what you are trying, the source holds what
+you decided. **Copy JSON** on the bench gives you the current set to paste over.
 
 ## Landscape
 

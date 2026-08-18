@@ -8,7 +8,7 @@
  * should not reach for a microphone on its own.
  */
 
-import { settings } from "@/lib/settings";
+import { settings } from "@/lib/settings-store";
 
 export type MicSource = {
   /** Fill `out` with a 0..1 level per column, bass first. */
@@ -20,9 +20,9 @@ export type MicSource = {
  * The band the panel shows, the window the spectrum is stretched across, the
  * gate, the auto-gain and the tilt correction are all tunable now and live in
  * src/lib/settings.ts, with the reasoning that used to sit here beside each
- * constant. They are read per frame, so /admin moves them while the mic is
- * running — including the analyser's own dB window, which is pushed back into
- * the node below whenever it changes.
+ * constant. They are read per frame through the store, so the bench moves them
+ * while the mic is running — including the analyser's own dB window, which is
+ * pushed back into the node below whenever it changes.
  */
 
 type WebkitWindow = Window & { webkitAudioContext?: typeof AudioContext };

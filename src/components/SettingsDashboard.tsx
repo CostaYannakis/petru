@@ -2,13 +2,8 @@
 
 import { useState } from "react";
 import Visualiser from "@/components/Visualiser";
-import {
-  DEFAULTS,
-  GROUPS,
-  useSettings,
-  type Field,
-  type Settings,
-} from "@/lib/settings";
+import { DEFAULTS, GROUPS, type Field, type Settings } from "@/lib/settings";
+import { useSettings } from "@/lib/settings-store";
 
 /**
  * The bench.
@@ -19,13 +14,13 @@ import {
  * simplified stand-in: same engine, same microphone path, same ballistics, just
  * in a box. Tuning against an approximation would be pointless.
  *
- * Changes are broadcast to every other tab on this origin, so the panel can be
- * full-screen on a second display while the sliders stay here.
- *
- * Dev only — /admin is not built in production.
+ * Changes reach three places, in widening circles: this page immediately, every
+ * other tab on the origin over a BroadcastChannel, and — where a shared store is
+ * configured — the deployed panel itself within a few seconds. The last of those
+ * is why the page is behind a password.
  */
 export default function SettingsDashboard() {
-  const { settings, set, reset } = useSettings();
+  const { settings, set, reset, remote } = useSettings();
   const [copied, setCopied] = useState(false);
 
   const changed = (Object.keys(DEFAULTS) as (keyof Settings)[]).filter(
@@ -51,8 +46,13 @@ export default function SettingsDashboard() {
           </h1>
           <p className="mt-1 text-xs leading-relaxed text-mid">
             The panel below is the real one. Tap it to give it the microphone.
-            Every change here reaches any other tab on this origin, so the
-            device can run full-screen on a second screen while you work.
+          </p>
+          <p className="mt-2 text-[0.7rem] leading-relaxed text-dim">
+            {remote === true
+              ? "Live: changes are written to the shared store and every panel on this deployment follows within a few seconds."
+              : remote === false
+                ? "Local only: no shared store is configured, so changes stay in this browser and reach other tabs on this origin."
+                : "Checking for a shared store…"}
           </p>
         </div>
 
@@ -88,6 +88,16 @@ export default function SettingsDashboard() {
           >
             Open panel ↗
           </a>
+          <button
+            type="button"
+            onClick={async () => {
+              await fetch("/api/admin/session", { method: "DELETE" });
+              location.reload();
+            }}
+            className="rounded border border-dim/40 px-3 py-1.5 uppercase tracking-widest text-dim transition-colors hover:border-hot hover:text-hot"
+          >
+            Sign out
+          </button>
           <span className="ml-auto tabular-nums text-mid">
             {changed.length === 0
               ? "stock tuning"

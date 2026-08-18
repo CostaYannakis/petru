@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { isThemeName, nextTheme, type ThemeName } from "@/lib/palette";
-import { useSettings } from "@/lib/settings";
+import { useSettings } from "@/lib/settings-store";
 
 const PARAM = "theme";
 const CYCLE_KEY = "t";
