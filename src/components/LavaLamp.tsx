@@ -59,6 +59,53 @@ type Blob = {
   seed: number;
 };
 
+/**
+ * Two points on the ramp, and only two.
+ *
+ * The first version coloured the fluid by height, straight off the panel's
+ * ramp, which is right for a meter and wrong for a lamp: it painted a rainbow
+ * up the glass and made every blob change colour as it drifted, which reads as
+ * a gradient with blobs in front of it rather than as wax.
+ *
+ * A lamp is one substance, lit from behind — a body colour and a hotter middle
+ * where more of it is stacked up. So the ramp is sampled at exactly two points:
+ * low for the wax, high for the glow inside it. The panel's identity survives,
+ * because those two points still come from its ramp — neon gives red wax with a
+ * yellow core, ice gives teal and pale white, ember amber and gold.
+ */
+const WAX = 0.32;
+const GLOW = 0.78;
+
+/**
+ * The pale version is not the dark one with its colours swapped.
+ *
+ * The dark lamp is built by *adding* light to black, which is why it glows —
+ * and why it can only ever get brighter. Nothing added is darker than what it
+ * lands on, so no amount of tinting turns it into ink. The pale version runs
+ * the same silhouette through the opposite operation instead: invert it, then
+ * multiply it down onto the ground.
+ *
+ * The fluid comes out genuinely black, which is what ferrofluid is. The ramp
+ * survives in the paper it sits on and in the sheen along the top of each mass,
+ * and nowhere else — a black liquid is black in every palette.
+ */
+function parseRgb(css: string): [number, number, number] {
+  const parts = css.match(/\d+/g);
+  if (!parts || parts.length < 3) return [255, 255, 255];
+  return [Number(parts[0]), Number(parts[1]), Number(parts[2])];
+}
+
+function mix(
+  a: [number, number, number],
+  b: [number, number, number],
+  k: number,
+) {
+  const at = (i: number) => Math.round(a[i] + (b[i] - a[i]) * k);
+  return `rgb(${at(0)},${at(1)},${at(2)})`;
+}
+
+const WHITE: [number, number, number] = [255, 255, 255];
+
 function setup(
   host: HTMLDivElement,
   canvas: HTMLCanvasElement,
@@ -87,6 +134,12 @@ function setup(
   const bands = new Float32Array(BANDS);
   let blobs: Blob[] = [];
 
+  // The paper the pale version is printed on: the ramp, almost entirely washed
+  // out. Enough tint that `ice` and `ember` are still telling you apart, not so
+  // much that it stops reading as white.
+  const ground = mix(parseRgb(colours.full[128]), WHITE, 0.9);
+  const sheen = colours.full[Math.round(GLOW * 255)];
+
   // Smoothed energies. The lamp answers the shape of the last half second and
   // not individual frames — one that flinched at every hi-hat would be a strobe
   // with extra steps.
@@ -112,24 +165,6 @@ function setup(
   let raf = 0;
   let last = 0;
   let running = true;
-
-/**
- * Two points on the ramp, and only two.
- *
- * The first version coloured the fluid by height, straight off the panel's
- * ramp, which is right for a meter and wrong for a lamp: it painted a rainbow
- * up the glass and made every blob change colour as it drifted, which reads as
- * a gradient with blobs in front of it rather than as wax.
- *
- * A lamp is one substance, lit from behind — a body colour and a hotter middle
- * where more of it is stacked up. So the ramp is sampled at exactly two points:
- * low for the wax, high for the glow inside it. The panel's identity survives,
- * because those two points still come from its ramp — neon gives red wax with a
- * yellow core, ice gives teal and pale white, ember amber and gold.
- */
-const WAX = 0.32;
-const GLOW = 0.78;
-
   function seed() {
     const { lavaBlobs } = settings();
     const next: Blob[] = [];
@@ -394,14 +429,13 @@ const GLOW = 0.78;
       // The swell is where the beat actually shows.
       //
       // Travel is the obvious place to put it and the wrong one: the fluid is
-      // viscous by design, so a blob simply cannot move far in the fifth of a
-      // second a kick lasts, and pushing hard enough to make it move that far
-      // costs the lamp its circulation. Size has no such problem. It answers
-      // instantly, it is bounded, and it cannot destabilise anything — the
-      // physics keeps using the unswollen radius, so this is purely what you
-      // see, not what the blobs do to each other.
+      // viscous by design, so a blob cannot move far in the fifth of a second a
+      // kick lasts, and pushing hard enough to make it costs the lamp its
+      // circulation. Size has no such problem. It answers instantly, it is
+      // bounded, and it cannot destabilise anything — the physics keeps using
+      // the unswollen radius, so this is purely what you see.
       //
-      // It also does the best thing in the picture for free: swelling blobs
+      // It also buys the best thing in the picture for free: swelling blobs
       // meet, so necks form and break on the beat through the merge threshold.
       const r =
         base * b.scale * (1 + pulse * 0.35 + level * 0.1 + treble * 0.05);
@@ -424,13 +458,16 @@ const GLOW = 0.78;
     }
 
     // A pool of heat at the base, so the bulb is visibly where the sound goes
-    // in rather than an invisible rule the blobs obey.
-    const glow = fctx.createRadialGradient(W / 2, H, 0, W / 2, H, H * 0.42);
-    const heat = clamp(0.1 + (bass + pulse * 1.4) * S.lavaHeat * 0.5, 0, 0.9);
-    glow.addColorStop(0, `rgba(255,255,255,${heat})`);
-    glow.addColorStop(1, "rgba(255,255,255,0)");
-    fctx.fillStyle = glow;
-    fctx.fillRect(0, 0, W, H);
+    // in rather than an invisible rule the blobs obey. The pale version has no
+    // bulb — ink on paper is not lit from below — so it is left out entirely.
+    if (!S.lavaLight) {
+      const glow = fctx.createRadialGradient(W / 2, H, 0, W / 2, H, H * 0.42);
+      const heat = clamp(0.1 + (bass + pulse * 1.4) * S.lavaHeat * 0.5, 0, 0.9);
+      glow.addColorStop(0, `rgba(255,255,255,${heat})`);
+      glow.addColorStop(1, "rgba(255,255,255,0)");
+      fctx.fillStyle = glow;
+      fctx.fillRect(0, 0, W, H);
+    }
 
     // --- melt them together --------------------------------------------------
     gctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -446,26 +483,70 @@ const GLOW = 0.78;
     gctx.drawImage(field, 0, 0);
     gctx.filter = "none";
 
-    // The wax. A flat colour low on the ramp, multiplied through the hard
+    // The same blobs blurred but *not* thresholded, so its brightness is a
+    // genuine thickness map: one blob is warm in the middle, two lying across
+    // each other are brighter still where they overlap. Both versions use it —
+    // one as the glow inside the fluid, the other as the sheen on top of it.
+    cctx.setTransform(1, 0, 0, 1, 0, 0);
+    cctx.globalCompositeOperation = "source-over";
+    if (canBlur) {
+      cctx.filter = `blur(${Math.max(2, base * SCALE * 0.22)}px)`;
+    }
+    // Nudged upward in the pale version, so what it lights is the top of each
+    // mass and it reads as a highlight falling on something wet.
+    cctx.drawImage(
+      field,
+      0,
+      S.lavaLight ? -Math.max(1, base * SCALE * 0.16) : 0,
+    );
+    cctx.filter = "none";
+
+    if (S.lavaLight) {
+      // --- ferrofluid: invert, then multiply down onto the paper -------------
+      //
+      // `difference` against white is the inversion: the silhouette that was
+      // white on black becomes black on white. Multiplying the ground through
+      // it then leaves the paper alone where there is no fluid and takes it to
+      // black where there is.
+      gctx.globalCompositeOperation = "difference";
+      gctx.fillStyle = "#fff";
+      gctx.fillRect(0, 0, fw, fh);
+
+      gctx.globalCompositeOperation = "multiply";
+      gctx.fillStyle = ground;
+      gctx.fillRect(0, 0, fw, fh);
+      gctx.globalCompositeOperation = "source-over";
+
+      cctx.globalCompositeOperation = "multiply";
+      cctx.fillStyle = sheen;
+      cctx.fillRect(0, 0, fw, fh);
+      cctx.globalCompositeOperation = "source-over";
+
+      ctx.globalCompositeOperation = "source-over";
+      ctx.fillStyle = ground;
+      ctx.fillRect(0, 0, W, H);
+      ctx.drawImage(goo, 0, 0, W, H);
+
+      // The sheen only ever lightens, so it does nothing to paper that is
+      // already near white, and everything to the black it lands on.
+      ctx.save();
+      ctx.globalCompositeOperation = "screen";
+      ctx.globalAlpha = 0.28 + pulse * 0.12;
+      ctx.drawImage(core, 0, 0, W, H);
+      ctx.restore();
+
+      ctx.globalCompositeOperation = "source-over";
+      return;
+    }
+
+    // --- lit fluid in the dark ----------------------------------------------
+    // The wax: a flat colour low on the ramp, multiplied through the hard
     // silhouette so black stays black and the shape takes one colour — a lamp
     // is one substance, not a gradient.
     gctx.globalCompositeOperation = "multiply";
     gctx.fillStyle = colours.body[Math.round(WAX * 255)];
     gctx.fillRect(0, 0, fw, fh);
     gctx.globalCompositeOperation = "source-over";
-
-    // The glow inside it. The same blobs blurred but *not* thresholded, so the
-    // brightness is a genuine thickness map: one blob is warm in the middle,
-    // and two lying across each other are brighter still where they overlap.
-    // That is the whole reason a lava lamp looks lit rather than painted, and
-    // it comes free from not throwing the soft edges away.
-    cctx.setTransform(1, 0, 0, 1, 0, 0);
-    cctx.globalCompositeOperation = "source-over";
-    if (canBlur) {
-      cctx.filter = `blur(${Math.max(2, base * SCALE * 0.22)}px)`;
-    }
-    cctx.drawImage(field, 0, 0);
-    cctx.filter = "none";
 
     cctx.globalCompositeOperation = "multiply";
     // The core climbs the ramp as the room gets louder, so the lamp runs hotter
@@ -502,7 +583,6 @@ const GLOW = 0.78;
 
     ctx.globalCompositeOperation = "source-over";
   }
-
   function frame(now: number) {
     if (!running) return;
 

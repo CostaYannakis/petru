@@ -357,7 +357,29 @@ real thickness map: one blob is warm in the middle, two lying across each other
 are brighter where they overlap. That is most of why it looks lit rather than
 painted, and it comes free from not throwing the soft edges away.
 
-Two knobs matter most. **Viscosity** is the hypnosis one: high is slow and
+### Ferrofluid
+
+There's a checkbox for the pale version: black fluid on near-white paper.
+
+It isn't the dark one with the colours swapped, and it can't be. The dark lamp
+is built by *adding* light to black — that's why it glows, and why it can only
+ever get brighter. Nothing added is darker than what it lands on, so no amount
+of tinting turns it into ink. The pale version runs the same silhouette through
+the opposite operation instead: invert it, then multiply it down onto the ground.
+
+The fluid comes out genuinely black, which is what ferrofluid is. The ramp
+survives in the paper it sits on and in the sheen along the top of each mass —
+that's the soft unthresholded copy again, nudged upward so it reads as a
+highlight falling on something wet — and nowhere else. A black liquid is black in
+every palette. The bulb goes too: ink on paper isn't lit from below.
+
+The DOM chrome follows via `data-surface` on `<html>`, because the diffuser's
+fall-off is drawn in black and black corners on white read as dirt rather than
+as depth.
+
+### Knobs
+
+Two matter most. **Viscosity** is the hypnosis one: high is slow and
 inevitable, low is water and reads as agitated. **Kick** is how much a transient
 shoves the fluid over and above heating it — heat has too much thermal mass to
 show a beat, so a kick warms the floor and is gone before anything visibly moves.

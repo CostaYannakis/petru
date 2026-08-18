@@ -39,6 +39,15 @@ export function useTheme() {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
 
+  // The DOM chrome has to know whether it is sitting on a lit black panel or on
+  // paper — the diffuser's fall-off is drawn in black, and black corners on
+  // white read as dirt rather than as depth.
+  const light = settings.lava && settings.lavaLight;
+
+  useEffect(() => {
+    document.documentElement.dataset.surface = light ? "light" : "dark";
+  }, [light]);
+
   const cycle = useCallback(() => {
     setPinned(null);
     set("theme", nextTheme(theme));

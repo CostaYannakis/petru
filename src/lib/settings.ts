@@ -68,6 +68,7 @@ export type Settings = {
   lavaHeat: number;
   lavaSize: number;
   lavaKick: number;
+  lavaLight: boolean;
   lavaGoo: number;
 
   // --- palette ---
@@ -117,6 +118,7 @@ export const DEFAULTS: Settings = {
   lavaHeat: 1,
   lavaSize: 0.14,
   lavaKick: 1,
+  lavaLight: false,
   lavaGoo: 24,
 
   theme: DEFAULT_THEME,
@@ -527,6 +529,12 @@ export const GROUPS: Group[] = [
         max: 3,
         step: 0.05,
         note: "How hard a transient shoves the fluid, over and above heating it. Heat alone has too much thermal mass to show a beat; this is what makes one land. At 0 the lamp only ever responds to the shape of a track, never its rhythm.",
+      },
+      {
+        kind: "toggle",
+        key: "lavaLight",
+        label: "Ferrofluid",
+        note: "Turns the lamp inside out: black fluid on a pale ground instead of lit fluid in the dark. Not a colour swap — the dark version is built by adding light, and nothing added can ever be darker than the paper.",
       },
       {
         kind: "number",

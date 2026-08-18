@@ -141,6 +141,26 @@ body {
   }
 }
 
+/*
+ * The pale lamp needs the opposite diffuser. The dark one falls off to black at
+ * the corners, which on white paper reads as dirt rather than as depth — so the
+ * sheen comes from above as before, and the fall-off is barely there at all.
+ */
+[data-surface="light"] .diffuser::after {
+  background:
+    linear-gradient(
+      to bottom,
+      rgb(255 255 255 / 0.55) 0%,
+      rgb(255 255 255 / 0) 34%
+    ),
+    radial-gradient(
+      130% 100% at 50% 45%,
+      rgba(0, 0, 0, 0) 58%,
+      rgba(0, 0, 0, 0.05) 86%,
+      rgba(0, 0, 0, 0.11) 100%
+    );
+}
+
 @keyframes pulse {
   0%,
   100% {
