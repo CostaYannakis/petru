@@ -105,6 +105,8 @@ function setup(
    */
   let bassSlow = 0;
   let pulse = 0;
+  /** Last frame's, so the *rising edge* can be told from the ringing tail. */
+  let prevPulse = 0;
 
   let t = 0;
   let raf = 0;
@@ -236,6 +238,11 @@ const GLOW = 0.78;
     const S = settings();
     if (blobs.length !== S.lavaBlobs) seed();
 
+    // One reading per frame, shared by every blob: how much of this frame's
+    // pulse is new. The tail is already accounted for in the fluid's motion.
+    const onset = Math.max(0, pulse - prevPulse);
+    prevPulse = pulse;
+
     const base = Math.min(W, H) * S.lavaSize;
 
     // Frame-rate independent drag: viscosity is quoted per sixtieth of a
@@ -262,14 +269,29 @@ const GLOW = 0.78;
       b.heat = clamp(b.heat, 0, 1);
 
       // The kick itself, felt through the fluid rather than at the element.
-      // Weighted toward the bottom of the lamp, so a beat lifts what is sitting
-      // on the floor and merely nudges what is already halfway up — the shape a
-      // real surge has, and the reason it reads as a swell travelling upward
-      // instead of the whole picture jumping at once.
-      if (pulse > 0.01) {
+      //
+      // Applied to velocity directly, on the rising edge only. Spreading it
+      // across the pulse as an acceleration is what the first version did, and
+      // it does nothing: at a viscosity worth having, drag has eaten ninety-odd
+      // percent of it within a fifth of a second, so the force is gone long
+      // before it has displaced anything you could see.
+      //
+      // Modest on purpose. A harder shove is not better — it launches blobs
+      // into the ceiling, where they stick, and a lamp with everything piled at
+      // the top has stopped being a lamp.
+      //
+      // Weighted toward the bottom, so a beat lifts what is sitting on the
+      // floor and merely nudges what is already halfway up: a swell travelling
+      // upward rather than the whole picture jumping at once.
+      if (onset > 0.05) {
         const low = clamp(b.y / H, 0, 1);
-        b.vy -= pulse * S.lavaKick * 520 * low * dt;
-        b.heat += pulse * S.lavaKick * 0.5 * low * dt;
+        b.vy -= onset * S.lavaKick * 900 * (0.35 + low * 0.65);
+        b.heat += onset * S.lavaKick * 0.18 * low;
+
+        // And a shove sideways, whose direction is fixed per blob. Lateral
+        // motion reads as strongly as vertical and cannot pile anything up —
+        // the glass is right there to stop it.
+        b.vx += Math.sin(b.seed * 3.7) * onset * S.lavaKick * 460;
       }
 
       // Buoyancy against weight, balanced so a blob at half heat is very nearly
@@ -369,13 +391,25 @@ const GLOW = 0.78;
     fctx.fillStyle = "#fff";
 
     for (const b of blobs) {
-      // Size answers the room a little, so the lamp swells on a loud passage.
-      const r = base * b.scale * (1 + level * 0.12 + treble * 0.08);
+      // The swell is where the beat actually shows.
+      //
+      // Travel is the obvious place to put it and the wrong one: the fluid is
+      // viscous by design, so a blob simply cannot move far in the fifth of a
+      // second a kick lasts, and pushing hard enough to make it move that far
+      // costs the lamp its circulation. Size has no such problem. It answers
+      // instantly, it is bounded, and it cannot destabilise anything — the
+      // physics keeps using the unswollen radius, so this is purely what you
+      // see, not what the blobs do to each other.
+      //
+      // It also does the best thing in the picture for free: swelling blobs
+      // meet, so necks form and break on the beat through the merge threshold.
+      const r =
+        base * b.scale * (1 + pulse * 0.35 + level * 0.1 + treble * 0.05);
 
-      // Squash and stretch along the direction of travel. Real fluid does this,
-      // and it is most of why the motion reads as heavy rather than floaty.
+      // Squash and stretch along the direction of travel, plus a share of the
+      // pulse — a real fluid deforms when it is struck, not only when it moves.
       const speed = Math.hypot(b.vx, b.vy);
-      const s = clamp(speed / 420, 0, 0.34);
+      const s = clamp(speed / 420 + pulse * 0.12, 0, 0.42);
 
       fctx.save();
       fctx.translate(b.x, b.y);
@@ -403,7 +437,11 @@ const GLOW = 0.78;
     gctx.globalCompositeOperation = "source-over";
 
     if (canBlur) {
-      gctx.filter = `blur(${Math.max(2, base * SCALE * 0.34)}px) contrast(${S.lavaGoo})`;
+      // The threshold tightens on a hit, so the mass draws itself in and its
+      // necks snap taut on the beat. Cheap, and it moves the whole silhouette
+      // at once rather than one blob at a time.
+      const bite = S.lavaGoo * (1 + pulse * 0.5);
+      gctx.filter = `blur(${Math.max(2, base * SCALE * 0.34)}px) contrast(${bite})`;
     }
     gctx.drawImage(field, 0, 0);
     gctx.filter = "none";
