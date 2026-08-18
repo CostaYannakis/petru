@@ -53,9 +53,12 @@ without a rebuild:
   `?theme=petru` — bookmark two URLs and flick between them on the actual
   hardware.
 - Press **`t`** to cycle, which is quicker at a desk.
+- Or the ramp control on [the bench](#tuning).
 
-Nothing is persisted; the URL is the whole state, so whatever you're looking at
-is something you can send to someone else.
+A `?theme=` in the URL pins that address to that ramp, so whatever you're
+looking at is still something you can send to someone else. Without one, the
+ramp comes from the settings store and survives a reload; pressing `t` lets go
+of the pin, so the key keeps working on a pinned address.
 
 The stops are spaced for a *coarse* grid. A dozen rows is all a phone gives, so
 each one has to land on a visibly different colour or two rows share one and the
@@ -84,10 +87,10 @@ Two sources can fill those arrays:
   spaced logarithmically from 45Hz to 12kHz, the way pitch is heard; linear
   bins would cram every instrument into the left edge. A slow auto-gain means a
   quiet room and a loud one both fill the panel, and a noise gate keeps silence
-  looking like silence. `MIN_DB`/`MAX_DB` are the sensitivity: they set the
+  looking like silence. `minDb`/`maxDb` are the sensitivity: they set the
   window the spectrum is stretched across, and they're deliberately low, so the
   panel is moving properly at conversation level rather than holding its top
-  rows back for a volume nobody plays indoors. `AGC_FLOOR` caps how far a quiet
+  rows back for a volume nobody plays indoors. `agcFloor` caps how far a quiet
   room gets pushed — lower is more sensitive and, past a point, amplified hiss.
 - **An idle animation** — used until the mic is switched on, so the panel is
   never a dead screen. Shaped like the real thing: bass on the left, a tilted
@@ -108,14 +111,14 @@ most of the work is in resisting the things that flatten that out.
 
 The mic's auto-gain is the main culprit: it exists so any volume fills the
 panel, but left to itself it hauls near-silence up to full scale and nothing is
-ever at rest. Three settings pull against it. `NOISE_GATE` decides what counts
+ever at rest. Three settings pull against it. `noiseGate` decides what counts
 as sound at all, and is set high enough that an empty room reads as empty.
-`AGC_FLOOR` caps how far a quiet one gets pushed, which is what leaves somewhere
-for a loud moment to go. Then `PUNCH` in `LedPanel.tsx` expands what survives —
+`agcFloor` caps how far a quiet one gets pushed, which is what leaves somewhere
+for a loud moment to go. Then `punch` expands what survives —
 an exponent over the whole range, pulling the middle down so ordinary sound sits
 low and only a real hit reaches the top rows.
 
-`PUNCH` is the one to reach for. Raise it for more contrast, and for a panel
+`punch` is the one to reach for. Raise it for more contrast, and for a panel
 that ignores more of what it can technically hear.
 
 ### Why the beat lands in the same place
@@ -137,7 +140,7 @@ drifts rather than snapping — a reference that jumps to the current peak maps
 every peak to full scale by construction, so a soft hit and a hard one would
 both hit the ceiling.
 
-`AGC_ROOM` then sets where ordinary content sits, since the mean is well below
+`agcRoom` then sets where ordinary content sits, since the mean is well below
 the peaks it has to leave headroom for. At 1.8 a beat lands about two thirds up
 with four rows still above it. Lower pins the panel, higher flattens it.
 
@@ -148,7 +151,7 @@ right-hand columns sit permanently low no matter how sensitive the mic is. The
 global auto-gain makes it worse — it normalises against the loudest column,
 nearly always a bass one, so the treble ends up scaled by somebody else's gain.
 Expansion then squashes hardest exactly where there was least to begin with,
-which means **raising `PUNCH` kills the right side first**.
+which means **raising `punch` kills the right side first**.
 
 So the mic keeps a slow average per column and applies a gain that pulls each
 one toward the panel's mean. The gain comes off the *average*, so it only
@@ -156,7 +159,7 @@ flattens the standing shape of the spectrum — whatever a column does around it
 own average passes through at full size. That's what equalises the tilt without
 touching the dynamics, and it's why the treble can dance as hard as the bass.
 
-`TILT_STRENGTH` is how complete the correction is. At `1` every column averages
+`tiltStrength` is how complete the correction is. At `1` every column averages
 the same height and the panel is ruled flat; just under, as it is, leaves some
 of the natural bass lean. It runs on gated values, so a column with nothing in
 it averages zero and is lifted to zero — silence is never equalised into noise.
@@ -164,7 +167,7 @@ it averages zero and is lifted to zero — silence is never equalised into noise
 ### Peak markers
 
 Every column leaves a single LED behind at its high-water line. It parks there
-for `PEAK_HOLD`, then sinks at `PEAK_FALL` — about two thirds of the panel's
+for `peakHold`, then sinks at `peakFall` — about two thirds of the panel's
 height per second, still well behind a bar that drops away in under half of one.
 So the loudest moment of the last second or two stays legible after the sound
 has gone, and the marker glides down through the colour band as it falls.
@@ -182,7 +185,7 @@ everything is a slow per-column wander, driven by three incommensurate rates off
 a fixed seed so it never repeats and neighbouring columns drift apart, plus a
 rare twinkle that pops a single column every couple of seconds.
 
-`SHIMMER` keeps it to a row or two off the deck — enough that the panel reads as
+`shimmer` keeps it to a row or two off the deck — enough that the panel reads as
 lit and waiting, not enough to read as something happening. It's weighted by how
 little real signal there is, so it vanishes the moment there's sound to show
 instead.
@@ -209,7 +212,7 @@ height so it uses the whole band. A horizontal wipe hands columns over to it,
 with the wipe edge running hot like the panel is being written to.
 
 It's currently **parked** — the panel runs pure spectrum with no text at all.
-Flip `SHOW_WORDMARK` in `LedPanel.tsx` to bring the cycle back.
+The `wordmark` toggle on [the bench](#tuning) brings the cycle back.
 
 ## Now playing
 
@@ -311,12 +314,36 @@ and its own idle animation. The card is additive.
 
 ## Tuning
 
-`PITCH_TARGET` in `LedPanel.tsx` is the one knob for how chunky the panel
-reads — it's the target centre-to-centre spacing of the diodes in CSS pixels.
-Raising it grows the LEDs and coarsens the grid, and takes steps off the
-amplitude scale with it, since every row is now one step.
+Every value the panel is tuned by lives in `src/lib/settings.ts` — the numbers
+and the reasoning both, since a knob without its argument is just a number. They
+are read on the frame that uses them rather than captured at startup, so nothing
+here needs a reload.
 
-`DEFAULT_THEME` in `palette.ts` is the other one — see [the palette](#the-palette).
+### The bench
+
+`npm run dev` and open **`/admin`**. It is the whole tuning surface: the real
+panel running in a box, with every setting beside it. Not a simplified preview —
+the same engine, the same microphone path, the same ballistics — because tuning
+against an approximation is worse than not tuning at all.
+
+Changes are broadcast to every other tab on the origin, so the device can run
+full-screen on a second screen while you work on this one. They persist in
+`localStorage`, and **Reset all** puts back the tuning that shipped, which is
+exactly the constants this file used to describe.
+
+**`/admin` is development only.** In a production build the route is not there
+at all — a panel left running in a room has no business carrying a page that can
+retune it.
+
+### Where to reach first
+
+`punch` for how much the panel ignores. `pitch` for how chunky it reads — the
+target centre-to-centre spacing of the diodes in CSS pixels, which also decides
+how many steps the amplitude scale has, since every row is one step. Then the
+ramp, which is the panel's whole identity — see [the palette](#the-palette).
+
+Defaults still live in code, so once a value is settled it belongs in
+`DEFAULTS`. **Copy JSON** on the bench gives you the current set to paste over.
 
 ## Landscape
 

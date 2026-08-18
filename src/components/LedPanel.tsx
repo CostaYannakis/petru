@@ -9,6 +9,7 @@ import {
   type Ramp,
   type ThemeName,
 } from "@/lib/palette";
+import { settings, subscribeSettings } from "@/lib/settings";
 
 /**
  * A dot-matrix LED panel, the kind bolted into an audio visualiser.
@@ -29,64 +30,15 @@ import {
 
 const WORD = "PETRU";
 
-/**
- * The wordmark is parked: the panel runs pure spectrum, no text. Set this back
- * to true to restore the analyser -> PETRU -> analyser cycle.
- */
-const SHOW_WORDMARK = false;
-
-// One full cycle of the panel: analyser, wipe to the wordmark, hold, wipe back.
-const SPECTRUM_MS = 11_000;
-const WIPE_MS = 900;
-const HOLD_MS = 3_600;
-
-/**
- * Target centre-to-centre spacing of the diodes, in CSS pixels. This is the
- * one knob for how chunky the panel reads — raising it grows the LEDs and
- * coarsens the grid, and takes steps off the amplitude scale with it.
- */
-const PITCH_TARGET = 36;
-
-/**
- * Minimum drive on every column, so the bottom row never goes dark and the
- * panel always stands on a lit deck.
- */
-const FLOOR = 0.08;
-
-/**
- * The peak marker: a single LED left behind at each column's high-water line.
- *
- * It parks there for a beat and is then let go, drifting down far slower than
- * the bar fell out from under it, so the loudest moment of the last second or
- * two stays legible after the sound has gone. It's the one part of the panel
- * that reports history rather than now, which is what makes a transient — a
- * snare, a door — read as an event instead of a flicker.
- */
-const PEAK_HOLD = 0.55; // seconds parked at a new high
-const PEAK_FALL = 0.64; // then this much of the panel's height per second
-
-/**
- * Expansion. The mic's auto-gain works to fill the panel, which is what makes
- * it sensitive and also what flattens everything toward the same height; this
- * pulls the middle of the range back down afterwards, so ordinary sound sits
- * low and only a real hit reaches the top rows.
- *
- * It is the whole difference between a panel that is always busy and one that
- * is mostly at rest and then goes off. Raise it for more contrast, and for a
- * panel that ignores more of what it can technically hear.
- */
-const PUNCH = 2.1;
-
-/**
- * Idle wander. A panel with nothing coming in should look powered, not frozen —
- * but only just. This lifts a row or two off the deck and no further, so a
- * quiet room reads as a lit panel waiting rather than as something happening,
- * and it fades out entirely as soon as there is real signal above `QUIET_AT`.
- */
-const SHIMMER = 0.12;
-const QUIET_AT = 0.22;
-
 const SANS = `ui-sans-serif, system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif`;
+
+/**
+ * Everything the panel is tuned by now lives in src/lib/settings.ts, along with
+ * the reasoning that used to sit here as comments on each constant. It is read
+ * per frame rather than captured at setup, so /admin can move a value and see
+ * it on the panel immediately. The defaults there are exactly the constants
+ * this file used to hold.
+ */
 
 function clamp(v: number, lo: number, hi: number) {
   return v < lo ? lo : v > hi ? hi : v;
@@ -242,7 +194,7 @@ function setup(
 
     // Chunky and square. Every row is a step on the amplitude scale now, so
     // there is no parity to keep — the count is whatever the height affords.
-    rows = clamp(Math.round(H / PITCH_TARGET), 6, 30);
+    rows = clamp(Math.round(H / settings().pitch), 6, 30);
 
     pitch = H / rows;
     cols = Math.max(4, Math.floor(W / pitch));
@@ -317,6 +269,7 @@ function setup(
    * same instrument as the idle animation.
    */
   function drive(dt: number) {
+    const S = settings();
     const mic = micRef.current;
     if (mic) mic.read(targets);
     else fillSynthetic();
@@ -325,13 +278,13 @@ function setup(
     // gate leaves this at zero and the wander below takes over entirely.
     let peak = 0;
     for (let c = 0; c < cols; c++) if (targets[c] > peak) peak = targets[c];
-    const quiet = clamp(1 - peak / QUIET_AT, 0, 1);
+    const quiet = clamp(1 - peak / S.quietAt, 0, 1);
 
     for (let c = 0; c < cols; c++) {
       // Expanded first, so the wander below is compared against a level that
       // has already been pushed down — otherwise the drift would be competing
       // with the loud reading rather than the honest one.
-      let raw = Math.pow(targets[c], PUNCH);
+      let raw = Math.pow(targets[c], S.punch);
 
       if (quiet > 0) {
         // Three incommensurate rates off a fixed per-column seed: it never
@@ -342,19 +295,19 @@ function setup(
         n += Math.sin(t * 0.55 + s * 0.7) * 0.4;
         n = (n / 1.25) * 0.5 + 0.5;
 
-        const wander = n * SHIMMER * quiet;
+        const wander = n * S.shimmer * quiet;
         if (wander > raw) raw = wander;
       }
 
       // A grid this coarse only has a dozen steps, so a raw 0 reads as a dead
       // column rather than a quiet one. Lift everything onto a floor: the
       // bottom row stays lit, the way it does on real hardware.
-      const target = FLOOR + (1 - FLOOR) * raw;
+      const target = S.floor + (1 - S.floor) * raw;
 
       // Hard attack, quick release: the bar is up on the transient and back
       // down before the next one, which is what stops a busy passage from
       // smearing into one lit slab and leaves the markers to hold the history.
-      const k = target > bands[c] ? dt * 34 : dt * 7.5;
+      const k = target > bands[c] ? dt * S.attack : dt * S.release;
       bands[c] += (target - bands[c]) * Math.min(1, k);
 
       // The marker takes a new high instantly, then parks before it starts to
@@ -362,11 +315,11 @@ function setup(
       // carries its own marker on top rather than leaving one behind inside.
       if (bands[c] >= peaks[c]) {
         peaks[c] = bands[c];
-        holds[c] = PEAK_HOLD;
+        holds[c] = S.peakHold;
       } else if (holds[c] > 0) {
         holds[c] -= dt;
       } else {
-        peaks[c] = Math.max(bands[c], peaks[c] - PEAK_FALL * dt);
+        peaks[c] = Math.max(bands[c], peaks[c] - S.peakFall * dt);
       }
     }
 
@@ -381,15 +334,16 @@ function setup(
 
   /** Where in the cycle we are, and how far the wordmark has wiped across. */
   function wordWipe(ms: number) {
-    if (!SHOW_WORDMARK) return 0;
+    const { wordmark, spectrumMs, wipeMs, holdMs } = settings();
+    if (!wordmark) return 0;
 
-    const cycle = SPECTRUM_MS + WIPE_MS + HOLD_MS + WIPE_MS;
+    const cycle = spectrumMs + wipeMs + holdMs + wipeMs;
     const p = ms % cycle;
 
-    if (p < SPECTRUM_MS) return 0;
-    if (p < SPECTRUM_MS + WIPE_MS) return (p - SPECTRUM_MS) / WIPE_MS;
-    if (p < SPECTRUM_MS + WIPE_MS + HOLD_MS) return 1;
-    return 1 - (p - SPECTRUM_MS - WIPE_MS - HOLD_MS) / WIPE_MS;
+    if (p < spectrumMs) return 0;
+    if (p < spectrumMs + wipeMs) return (p - spectrumMs) / wipeMs;
+    if (p < spectrumMs + wipeMs + holdMs) return 1;
+    return 1 - (p - spectrumMs - wipeMs - holdMs) / wipeMs;
   }
 
   /** Fill `level` from whichever source owns each column this frame. */
@@ -490,11 +444,14 @@ function setup(
     if (gctx) {
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
+      const { bloom } = settings();
       if (canBlur) {
         ctx.filter = `blur(${Math.max(2.5, pitch * 0.36)}px)`;
-        ctx.globalAlpha = 0.72;
+        ctx.globalAlpha = bloom;
       } else {
-        ctx.globalAlpha = 0.3;
+        // No filter support, so the same pass lands as a hard double-exposure.
+        // Scaled well down, or it reads as smeared rather than glowing.
+        ctx.globalAlpha = bloom * 0.42;
       }
       ctx.drawImage(glow, 0, 0, W, H);
       ctx.filter = "none";
@@ -522,6 +479,18 @@ function setup(
   const ro = new ResizeObserver(() => build());
   ro.observe(host);
 
+  // Nearly every setting is read inside the frame that uses it and so needs
+  // nothing here. The LED pitch is the exception: it decides the row and column
+  // counts, and those size every buffer the panel owns, so a change has to go
+  // back through build() rather than being picked up on the next frame.
+  let pitchTarget = settings().pitch;
+  const unsubscribe = subscribeSettings(() => {
+    const next = settings().pitch;
+    if (next === pitchTarget) return;
+    pitchTarget = next;
+    build();
+  });
+
   function onVisibility() {
     if (document.hidden) {
       running = false;
@@ -538,6 +507,7 @@ function setup(
     running = false;
     cancelAnimationFrame(raf);
     ro.disconnect();
+    unsubscribe();
     document.removeEventListener("visibilitychange", onVisibility);
   };
 }
