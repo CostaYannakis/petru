@@ -69,6 +69,7 @@ export type Settings = {
   lavaSize: number;
   lavaKick: number;
   lavaLight: boolean;
+  lavaSheen: number;
   lavaGoo: number;
 
   // --- palette ---
@@ -119,6 +120,7 @@ export const DEFAULTS: Settings = {
   lavaSize: 0.14,
   lavaKick: 1,
   lavaLight: false,
+  lavaSheen: 0,
   lavaGoo: 24,
 
   theme: DEFAULT_THEME,
@@ -535,6 +537,15 @@ export const GROUPS: Group[] = [
         key: "lavaLight",
         label: "Ferrofluid",
         note: "Turns the lamp inside out: black fluid on a pale ground instead of lit fluid in the dark. Not a colour swap — the dark version is built by adding light, and nothing added can ever be darker than the paper.",
+      },
+      {
+        kind: "number",
+        key: "lavaSheen",
+        label: "Sheen",
+        min: 0,
+        max: 1,
+        step: 0.02,
+        note: "Ferrofluid only: how wet the fluid looks. 0 is vantablack — no highlight anywhere, so the shapes read as holes cut in the paper rather than as objects on it. Anything above 0 lights the top of each mass and it becomes a black liquid with something to reflect.",
       },
       {
         kind: "number",

@@ -485,23 +485,36 @@ function setup(
 
     // The same blobs blurred but *not* thresholded, so its brightness is a
     // genuine thickness map: one blob is warm in the middle, two lying across
-    // each other are brighter still where they overlap. Both versions use it —
-    // one as the glow inside the fluid, the other as the sheen on top of it.
-    cctx.setTransform(1, 0, 0, 1, 0, 0);
-    cctx.globalCompositeOperation = "source-over";
-    if (canBlur) {
-      cctx.filter = `blur(${Math.max(2, base * SCALE * 0.22)}px)`;
+    // each other are brighter still where they overlap. The dark lamp always
+    // wants it, as the glow inside the fluid. The pale one only wants it if the
+    // fluid is meant to look wet, and at a sheen of zero it is a blur pass a
+    // frame for nothing.
+    const wantsCore = !S.lavaLight || S.lavaSheen > 0;
+
+    if (wantsCore) {
+      cctx.setTransform(1, 0, 0, 1, 0, 0);
+      cctx.globalCompositeOperation = "source-over";
+      if (canBlur) {
+        cctx.filter = `blur(${Math.max(2, base * SCALE * 0.22)}px)`;
+      }
+      // Nudged upward in the pale version, so what it lights is the top of each
+      // mass and it reads as a highlight falling on something wet.
+      cctx.drawImage(
+        field,
+        0,
+        S.lavaLight ? -Math.max(1, base * SCALE * 0.16) : 0,
+      );
+      cctx.filter = "none";
     }
-    // Nudged upward in the pale version, so what it lights is the top of each
-    // mass and it reads as a highlight falling on something wet.
-    cctx.drawImage(
-      field,
-      0,
-      S.lavaLight ? -Math.max(1, base * SCALE * 0.16) : 0,
-    );
-    cctx.filter = "none";
 
     if (S.lavaLight) {
+      if (wantsCore) {
+        cctx.globalCompositeOperation = "multiply";
+        cctx.fillStyle = sheen;
+        cctx.fillRect(0, 0, fw, fh);
+        cctx.globalCompositeOperation = "source-over";
+      }
+
       // --- ferrofluid: invert, then multiply down onto the paper -------------
       //
       // `difference` against white is the inversion: the silhouette that was
@@ -517,23 +530,29 @@ function setup(
       gctx.fillRect(0, 0, fw, fh);
       gctx.globalCompositeOperation = "source-over";
 
-      cctx.globalCompositeOperation = "multiply";
-      cctx.fillStyle = sheen;
-      cctx.fillRect(0, 0, fw, fh);
-      cctx.globalCompositeOperation = "source-over";
-
       ctx.globalCompositeOperation = "source-over";
       ctx.fillStyle = ground;
       ctx.fillRect(0, 0, W, H);
       ctx.drawImage(goo, 0, 0, W, H);
 
-      // The sheen only ever lightens, so it does nothing to paper that is
-      // already near white, and everything to the black it lands on.
-      ctx.save();
-      ctx.globalCompositeOperation = "screen";
-      ctx.globalAlpha = 0.28 + pulse * 0.12;
-      ctx.drawImage(core, 0, 0, W, H);
-      ctx.restore();
+      // At this point the fluid is exactly zero across its whole area: the
+      // threshold drove the silhouette to white, difference took it to black,
+      // and multiplying anything by black leaves black. Nothing below is
+      // allowed to lift it unless asked.
+      //
+      // A sheen is the natural thing to add and the reason it looked grey. It
+      // lightens, and it is brightest in the middle of a mass — precisely where
+      // the fluid should be deepest — so it lifted the whole shape off black
+      // and left a slightly dirty charcoal. Vantablack has no specular at all;
+      // objects made of it read as holes rather than as things, and that is the
+      // effect worth having here. So it is off unless the knob asks for it.
+      if (S.lavaSheen > 0) {
+        ctx.save();
+        ctx.globalCompositeOperation = "screen";
+        ctx.globalAlpha = S.lavaSheen * (0.28 + pulse * 0.12);
+        ctx.drawImage(core, 0, 0, W, H);
+        ctx.restore();
+      }
 
       ctx.globalCompositeOperation = "source-over";
       return;

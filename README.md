@@ -367,11 +367,24 @@ ever get brighter. Nothing added is darker than what it lands on, so no amount
 of tinting turns it into ink. The pale version runs the same silhouette through
 the opposite operation instead: invert it, then multiply it down onto the ground.
 
-The fluid comes out genuinely black, which is what ferrofluid is. The ramp
-survives in the paper it sits on and in the sheen along the top of each mass —
-that's the soft unthresholded copy again, nudged upward so it reads as a
-highlight falling on something wet — and nowhere else. A black liquid is black in
-every palette. The bulb goes too: ink on paper isn't lit from below.
+The fluid comes out at exactly zero across its whole area — the threshold drives
+the silhouette to white, difference takes it to black, and multiplying anything
+by black leaves black. Nothing afterwards is allowed to lift it.
+
+That last part is the whole point, and it's where the first attempt went wrong.
+A sheen is the natural thing to add, and it's why the fluid looked charcoal
+rather than black: it *lightens*, and it's brightest in the middle of a mass —
+exactly where the fluid should be deepest. Vantablack has no specular at all.
+Objects made of it read as holes rather than as things, and that's the effect
+worth having. So the sheen is off by default and lives behind its own knob.
+
+The same reasoning strips the white wash out of the diffuser on this surface: a
+gradient across the top is lovely on a lit panel and fatal here, because it lands
+on the fluid as much as on the paper. What's left only darkens, which black is
+free to ignore.
+
+The ramp survives in the paper alone, then — a black liquid is black in every
+palette. The bulb goes too: ink on paper isn't lit from below.
 
 The DOM chrome follows via `data-surface` on `<html>`, because the diffuser's
 fall-off is drawn in black and black corners on white read as dirt rather than
