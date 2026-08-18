@@ -312,6 +312,42 @@ which is right both in development and behind Vercel's proxy.
 Without any of this the panel runs exactly as it always has, on the microphone
 and its own idle animation. The card is additive.
 
+## The other screen
+
+There is a second renderer behind a checkbox on the bench: a lava lamp.
+
+It is deliberately the opposite instrument. The panel is a meter — it reports a
+level, honestly, sixty times a second, and every bar's height *is* a number.
+Nothing in the lamp maps a number to anything. Sound heats the floor, and
+everything after that happens because of buoyancy, drag and surface tension. A
+bass note does not move a blob; it warms the fluid, and a blob that was already
+going to rise rises sooner.
+
+That indirection is the entire effect. It is why the lamp stays hypnotic across
+a whole track instead of twitching along with it, and why it never repeats: the
+room keeps changing how hard the floor is driven, and the fluid is always still
+answering the last thing it was told.
+
+Each blob takes on heat near the base and gives it up near the top, so
+everything rises, cools, falls, warms and rises again — one rule, and the whole
+circulation falls out of it. Between them there's surface tension: a gentle pull
+at conversation distance and a firm push once they're inside each other, so
+blobs that meet hang together a while and then let go. A lamp where they either
+bounce or merge forever looks like neither. They squash and stretch along their
+direction of travel, which is most of why the motion reads as heavy rather than
+floaty.
+
+The gooeyness is the metaball trick: plain circles, blurred so neighbours bleed
+into one another, then a hard contrast to snap the result back to an edge. What
+survives in between is the neck joining two blobs. It's done on opaque black
+rather than a transparent surface, because contrast on RGB is well defined
+everywhere and contrast on alpha is not.
+
+Colour is the same ramp as the panel, mapped bottom to top, so a blob two thirds
+up is the colour a bar two thirds up would be — the two screens are recognisably
+the same device. **Viscosity** is the hypnosis knob: high is slow and
+inevitable, low is water and reads as agitated.
+
 ## Tuning
 
 Every value the panel is tuned by lives in `src/lib/settings.ts` — the numbers

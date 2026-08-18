@@ -60,6 +60,15 @@ export type Settings = {
   wipeMs: number;
   holdMs: number;
 
+  // --- lava lamp ---
+  lava: boolean;
+  lavaBlobs: number;
+  lavaViscosity: number;
+  lavaBuoyancy: number;
+  lavaHeat: number;
+  lavaSize: number;
+  lavaGoo: number;
+
   // --- palette ---
   theme: ThemeName;
 };
@@ -99,6 +108,14 @@ export const DEFAULTS: Settings = {
   spectrumMs: 11_000,
   wipeMs: 900,
   holdMs: 3_600,
+
+  lava: false,
+  lavaBlobs: 9,
+  lavaViscosity: 0.9,
+  lavaBuoyancy: 1,
+  lavaHeat: 1,
+  lavaSize: 0.14,
+  lavaGoo: 24,
 
   theme: DEFAULT_THEME,
 };
@@ -441,6 +458,73 @@ export const GROUPS: Group[] = [
         max: 20_000,
         step: 100,
         note: "How long the wordmark stays up before wiping back.",
+      },
+    ],
+  },
+  {
+    title: "Lava lamp",
+    blurb:
+      "The other screen. Same microphone, no grid: blobs in a warm viscous fluid, heated from below by whatever the room is doing. Bass is the bulb — it warms the floor, and what rises does so because it is hot rather than because a beat told it to.",
+    fields: [
+      {
+        kind: "toggle",
+        key: "lava",
+        label: "Lava lamp",
+        note: "Swaps the dot-matrix panel for the lamp. Everything above still applies to the panel; everything below, to the lamp.",
+      },
+      {
+        kind: "number",
+        key: "lavaBlobs",
+        label: "Blobs",
+        min: 3,
+        max: 22,
+        step: 1,
+        note: "How many. Few and large reads as a lamp; many and small reads as a boil.",
+      },
+      {
+        kind: "number",
+        key: "lavaSize",
+        label: "Size",
+        min: 0.05,
+        max: 0.32,
+        step: 0.005,
+        note: "Base radius as a fraction of the short side. Large blobs merge into slow columns; small ones stay separate.",
+      },
+      {
+        kind: "number",
+        key: "lavaViscosity",
+        label: "Viscosity",
+        min: 0.55,
+        max: 0.985,
+        step: 0.005,
+        note: "How thick the fluid is. This is the hypnosis knob — high is slow and inevitable, low is water and reads as agitated.",
+      },
+      {
+        kind: "number",
+        key: "lavaBuoyancy",
+        label: "Buoyancy",
+        min: 0.2,
+        max: 3,
+        step: 0.05,
+        note: "How hard heat lifts. Too much and everything piles at the ceiling instead of circulating.",
+      },
+      {
+        kind: "number",
+        key: "lavaHeat",
+        label: "Heat from sound",
+        min: 0,
+        max: 3,
+        step: 0.05,
+        note: "How much the room stokes the bulb. At 0 the lamp still runs, on its own slow convection.",
+      },
+      {
+        kind: "number",
+        key: "lavaGoo",
+        label: "Goo",
+        min: 4,
+        max: 60,
+        step: 1,
+        note: "How hard the merge threshold bites. High is taut and mercurial, low is soft and cloudy.",
       },
     ],
   },
