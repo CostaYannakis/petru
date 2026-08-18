@@ -1,6 +1,20 @@
 import { DEFAULT_THEME, THEME_NAMES, type ThemeName } from "@/lib/palette";
 
 /**
+ * The renderers, and what they are for.
+ *
+ * `panel` reports — every bar's height is a reading. `lava` is the opposite
+ * instrument, where sound heats a fluid and physics does the rest. `meter` is a
+ * needle with mass and a spring, which is a third thing again: it does not show
+ * you the level, it shows you the level arriving.
+ *
+ * They share the microphone, the ramp and the tap-anywhere, and know nothing
+ * about each other.
+ */
+export const SCREENS = ["panel", "lava", "meter"] as const;
+export type ScreenName = (typeof SCREENS)[number];
+
+/**
  * Every number the panel is tuned by, and what each one is for.
  *
  * This half is pure data — the shape, the defaults, the bench's schema and the
@@ -60,8 +74,10 @@ export type Settings = {
   wipeMs: number;
   holdMs: number;
 
+  // --- which screen ---
+  screen: ScreenName;
+
   // --- lava lamp ---
-  lava: boolean;
   lavaBlobs: number;
   lavaViscosity: number;
   lavaBuoyancy: number;
@@ -71,6 +87,13 @@ export type Settings = {
   lavaLight: boolean;
   lavaSheen: number;
   lavaGoo: number;
+
+  // --- voltage meter ---
+  meterCount: number;
+  meterRise: number;
+  meterDamping: number;
+  meterGlow: number;
+  meterPeak: number;
 
   // --- palette ---
   theme: ThemeName;
@@ -112,7 +135,7 @@ export const DEFAULTS: Settings = {
   wipeMs: 900,
   holdMs: 3_600,
 
-  lava: false,
+  screen: "panel",
   lavaBlobs: 9,
   lavaViscosity: 0.9,
   lavaBuoyancy: 1,
@@ -122,6 +145,12 @@ export const DEFAULTS: Settings = {
   lavaLight: false,
   lavaSheen: 0,
   lavaGoo: 24,
+
+  meterCount: 2,
+  meterRise: 300,
+  meterDamping: 0.72,
+  meterGlow: 0.55,
+  meterPeak: 1.4,
 
   theme: DEFAULT_THEME,
 };
@@ -148,7 +177,7 @@ type ToggleField = {
 
 type ChoiceField = {
   kind: "choice";
-  key: "theme";
+  key: ChoiceKey;
   label: string;
   options: readonly string[];
   note: string;
@@ -169,8 +198,23 @@ type KeysOfType<T> = {
 
 export type NumberKey = KeysOfType<number>;
 export type BooleanKey = KeysOfType<boolean>;
+export type ChoiceKey = "theme" | "screen";
 
 export const GROUPS: Group[] = [
+  {
+    title: "Screen",
+    blurb:
+      "Which instrument is running. They share the microphone, the ramp and the tap-anywhere, and nothing else — each group below belongs to one of them.",
+    fields: [
+      {
+        kind: "choice",
+        key: "screen",
+        label: "Showing",
+        options: SCREENS,
+        note: "panel reports a level · lava is heated by the room · meter is a needle with mass, showing the level arriving rather than the level.",
+      },
+    ],
+  },
   {
     title: "Panel",
     blurb:
@@ -473,12 +517,6 @@ export const GROUPS: Group[] = [
       "The other screen. Same microphone, no grid: blobs in a warm viscous fluid, heated from below by whatever the room is doing. Bass is the bulb — it warms the floor, and what rises does so because it is hot rather than because a beat told it to.",
     fields: [
       {
-        kind: "toggle",
-        key: "lava",
-        label: "Lava lamp",
-        note: "Swaps the dot-matrix panel for the lamp. Everything above still applies to the panel; everything below, to the lamp.",
-      },
-      {
         kind: "number",
         key: "lavaBlobs",
         label: "Blobs",
@@ -559,6 +597,58 @@ export const GROUPS: Group[] = [
     ],
   },
   {
+    title: "Voltage meter",
+    blurb:
+      "A moving-coil needle, which is a mechanism rather than a drawing: a coil with mass on a spring, pushed by the signal and fought by its own inertia. It cannot show you a level instantly, and that lag is the entire character — a VU meter is a low-pass filter you can watch.",
+    fields: [
+      {
+        kind: "number",
+        key: "meterCount",
+        label: "Meters",
+        min: 1,
+        max: 4,
+        step: 1,
+        note: "Each takes its own slice of the spectrum, low to high. Two is the pair off the front of a deck.",
+      },
+      {
+        kind: "number",
+        key: "meterRise",
+        label: "Rise (ms)",
+        min: 60,
+        max: 900,
+        step: 10,
+        note: "How long the needle takes to arrive. 300 is the VU standard and is not arbitrary — it is roughly how the ear integrates loudness, which is why the reading looks like what you are hearing.",
+      },
+      {
+        kind: "number",
+        key: "meterDamping",
+        label: "Damping",
+        min: 0.3,
+        max: 1.6,
+        step: 0.02,
+        note: "As a fraction of critical. Below 1 the needle overshoots and settles back, which is what a real one does and most of why it looks alive. At 1 and above it creeps in and never passes the mark.",
+      },
+      {
+        kind: "number",
+        key: "meterGlow",
+        label: "Backlight",
+        min: 0,
+        max: 1,
+        step: 0.02,
+        note: "The lamp behind the dial. Off is a daylight instrument; up is the warm face of a deck in a dark room.",
+      },
+      {
+        kind: "number",
+        key: "meterPeak",
+        label: "Peak lamp hold",
+        min: 0,
+        max: 4,
+        step: 0.1,
+        note: "Seconds the overload lamp stays lit after the needle passes 0. At 0 there is no lamp.",
+      },
+    ],
+  },
+  {
     title: "Palette",
     blurb:
       "One ramp, bottom row to top. A column's top LED is both its level and its colour, so the band is the scale printed beside the meter.",
@@ -609,8 +699,18 @@ export function cleanSettings(input: unknown): Partial<Settings> {
       if (typeof value === "string" && (THEME_NAMES as string[]).includes(value)) {
         out[key] = value;
       }
+    } else if (key === "screen") {
+      if (typeof value === "string" && (SCREENS as readonly string[]).includes(value)) {
+        out[key] = value;
+      }
     }
   }
+
+  // `lava` was a boolean before there was a third screen. A device already out
+  // there is holding one, and dropping it as unrecognised would quietly send it
+  // back to the LED panel — so it is read once more, here, and translated.
+  const legacy = (input as { lava?: unknown }).lava;
+  if (out.screen === undefined && legacy === true) out.screen = "lava";
 
   return out as Partial<Settings>;
 }

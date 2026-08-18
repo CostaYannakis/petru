@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import LavaLamp from "@/components/LavaLamp";
 import LedPanel from "@/components/LedPanel";
+import VoltageMeter from "@/components/VoltageMeter";
 import { startMic, type MicSource } from "@/lib/mic";
 import { useSettings } from "@/lib/settings-store";
 import { useTheme } from "@/lib/theme";
@@ -62,8 +63,10 @@ export default function Visualiser() {
 
   return (
     <>
-      {settings.lava ? (
+      {settings.screen === "lava" ? (
         <LavaLamp micRef={micRef} theme={theme} />
+      ) : settings.screen === "meter" ? (
+        <VoltageMeter micRef={micRef} theme={theme} />
       ) : (
         <LedPanel micRef={micRef} theme={theme} />
       )}

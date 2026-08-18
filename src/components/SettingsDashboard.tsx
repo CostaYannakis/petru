@@ -208,8 +208,12 @@ function Control({
       {field.kind === "choice" ? (
         <select
           id={field.key}
-          value={settings.theme}
-          onChange={(e) => set("theme", e.target.value as Settings["theme"])}
+          // Keyed off the field rather than hardwired to the palette — there is
+          // more than one choice on this page now.
+          value={settings[field.key]}
+          onChange={(e) =>
+            set(field.key, e.target.value as Settings[typeof field.key])
+          }
           className="mt-1.5 w-full rounded border border-dim/30 bg-black px-2 py-1 text-xs text-peak outline-none focus:border-hot"
         >
           {field.options.map((option) => (

@@ -312,9 +312,12 @@ which is right both in development and behind Vercel's proxy.
 Without any of this the panel runs exactly as it always has, on the microphone
 and its own idle animation. The card is additive.
 
-## The other screen
+## The other screens
 
-There is a second renderer behind a checkbox on the bench: a lava lamp.
+Three renderers now, chosen on the bench. They share the microphone, the ramp
+and the tap-anywhere, and know nothing about each other.
+
+### The lava lamp
 
 It is deliberately the opposite instrument. The panel is a meter — it reports a
 level, honestly, sixty times a second, and every bar's height *is* a number.
@@ -398,6 +401,40 @@ shoves the fluid over and above heating it — heat has too much thermal mass to
 show a beat, so a kick warms the floor and is gone before anything visibly moves.
 Kick is what makes one land. At 0 the lamp answers only the shape of a track and
 never its rhythm, which is a legitimate thing to want and not the default.
+
+## The voltage meter
+
+A moving-coil needle, of the kind bolted across the front of a deck.
+
+The needle is the point, and the needle is a *mechanism*: a coil with mass, hung
+on a spring, pushed by the signal and fought by its own inertia. It cannot show
+you a level instantly, and that lag isn't a defect to be tuned out — it's the
+entire character. A VU meter is a low-pass filter you can watch.
+
+So it isn't a number eased toward a target. It's a second-order system
+integrated every frame:
+
+```
+acceleration = stiffness x (target - angle) - damping x velocity
+```
+
+Below critical damping the needle passes the mark and settles back, and that
+overshoot is most of why a real one looks alive rather than drawn. **Damping** is
+quoted as a fraction of critical, so under 1 overshoots and 1 or over creeps in.
+
+**Rise** is quoted in milliseconds and means it: the stiffness is solved back
+from the rise time rather than picked by eye, since for a second-order system the
+time to first reach the mark is about 3.4/w. The 300ms default isn't arbitrary
+either — it's roughly how the ear integrates loudness, which is why a VU reading
+looks like what you're hearing rather than like the waveform.
+
+The mic is mono, so more than one meter splits the spectrum low to high rather
+than showing you the same needle twice. Two reads like the pair off a deck while
+still telling you something.
+
+The face is cream and lit from behind, because that's what these were. The ramp
+survives in the danger arc and the lamp behind the dial — a meter face is ivory
+in every palette, the same way ferrofluid is black in all of them.
 
 ## Tuning
 
