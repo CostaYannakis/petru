@@ -560,6 +560,27 @@ Also in there: two glass reflections, because a cylinder gives you a bright one
 on the lit side and a weaker one wrapping the far edge; and a faint mercury cast,
 which keeps the picture from being a single hue.
 
+**The tubes are mounted, not floating.** The fascia is drawn *over* the finished
+tubes with holes punched through it, and the order is the entire trick: a panel
+painted first with tubes drawn on top is a picture of tubes lying on a panel; a
+panel drawn last, with holes in it, is a panel with tubes behind it. It costs one
+even-odd fill. Each aperture is deliberately a little tighter than the tube
+behind it, so the rim and the base disappear and what's left in the hole is
+glass — which is what mounting means. The cut has a lip, dark at the top where
+the panel's thickness shadows into the hole and catching light at the bottom, and
+each lit tube spills onto the fascia around its own aperture. Without that spill
+it's a flat colour with cutouts and the tubes are stickers in the cutouts.
+
+`walnut` is what most of these actually lived in; `brushed` and `vanta` are there
+too.
+
+**The colon doesn't blink.** Blinking it is the reflex, because every digital
+clock does — but that's a reflex inherited from seven-segment displays, where the
+blink was doing a job: telling you the thing was still running. A nixie either
+has a second hand made of two more tubes or it doesn't, and either way there's
+nothing left for a blink to say. On a wall it's just something twitching at you
+once a second.
+
 In 12-hour mode the leading tube is **blanked, not removed** — the cathodes don't
 go anywhere when they're unlit, so its ghosts stay. That's what a real clock
 looks like at nine o'clock.

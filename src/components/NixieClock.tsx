@@ -68,6 +68,10 @@ function setup(
 ) {
   const glow = document.createElement("canvas");
   const gctx = glow.getContext("2d");
+
+  /** The fascia the tubes are mounted behind. Grain is expensive and static. */
+  const face = document.createElement("canvas");
+  const fctx = face.getContext("2d");
   const canBlur = typeof ctx.filter === "string";
 
   let W = 0;
@@ -95,6 +99,76 @@ function setup(
 
     glow.width = canvas.width;
     glow.height = canvas.height;
+
+    fascia();
+  }
+
+  /**
+   * The panel material.
+   *
+   * Painted to its own surface once, because both the wood grain and the
+   * brushed grain are hundreds of random strokes: regenerating them per frame
+   * would cost real time and, worse, would shimmer — the grain would be a
+   * different piece of timber sixty times a second.
+   */
+  function fascia() {
+    if (!fctx) return;
+
+    face.width = Math.max(1, Math.round(W * dpr));
+    face.height = Math.max(1, Math.round(H * dpr));
+    fctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    const kind = settings().nixiePanel;
+
+    if (kind === "vanta") {
+      fctx.fillStyle = "#000";
+      fctx.fillRect(0, 0, W, H);
+      return;
+    }
+
+    if (kind === "walnut") {
+      const wood = fctx.createLinearGradient(0, 0, 0, H);
+      wood.addColorStop(0, "#4a2f1c");
+      wood.addColorStop(0.45, "#3b2415");
+      wood.addColorStop(1, "#2a1810");
+      fctx.fillStyle = wood;
+      fctx.fillRect(0, 0, W, H);
+
+      // Grain: long, shallow, mostly parallel arcs. Wood is not a stripe
+      // pattern — the lines wander and bunch, and the bunching is what reads.
+      const lines = Math.round(H * 0.9);
+      for (let i = 0; i < lines; i++) {
+        const y = Math.random() * H;
+        const bow = (Math.random() - 0.5) * H * 0.05;
+        const a = Math.random() * 0.06;
+        fctx.strokeStyle =
+          Math.random() < 0.45
+            ? `rgba(255,225,190,${a})`
+            : `rgba(20,10,4,${a * 1.6})`;
+        fctx.lineWidth = Math.random() < 0.12 ? 2.2 : 0.8;
+        fctx.beginPath();
+        fctx.moveTo(-10, y);
+        fctx.quadraticCurveTo(W / 2, y + bow, W + 10, y + bow * 0.3);
+        fctx.stroke();
+      }
+      return;
+    }
+
+    const base = fctx.createLinearGradient(0, 0, 0, H);
+    base.addColorStop(0, "#8f8a80");
+    base.addColorStop(0.5, "#7c776e");
+    base.addColorStop(1, "#615d56");
+    fctx.fillStyle = base;
+    fctx.fillRect(0, 0, W, H);
+
+    const lines = Math.round(H * 1.4);
+    for (let i = 0; i < lines; i++) {
+      const y = Math.random() * H;
+      const a = Math.random() * 0.05;
+      fctx.fillStyle =
+        Math.random() < 0.5 ? `rgba(255,255,255,${a})` : `rgba(0,0,0,${a})`;
+      fctx.fillRect(0, y, W, Math.random() < 0.15 ? 1.5 : 0.7);
+    }
   }
 
   function listen() {
@@ -147,6 +221,43 @@ function setup(
   }
 
   type Slot = { x: number; y: number; w: number; h: number; lit: number | null };
+
+  /** The hole in the fascia a tube is seen through. */
+  type Hole = { x: number; y: number; w: number; h: number; r: number };
+
+  /**
+   * Tighter than the tube behind it, on purpose.
+   *
+   * The panel has to overlap the glass, because that is what mounting is: a
+   * hole slightly smaller than the thing behind it. Make the aperture match the
+   * tube and you get a tube with a line drawn round it; make it smaller and the
+   * rim and the base disappear behind the fascia, and what is left in the hole
+   * is glass.
+   */
+  function aperture({ x, y, w, h }: Slot): Hole {
+    const bulbW = w * 0.86 * 0.9;
+    const bulbH = h * 0.86 * 0.94;
+    return {
+      x: x + w / 2 - bulbW / 2,
+      y: y + h * 0.03 + h * 0.86 * 0.03,
+      w: bulbW,
+      h: bulbH,
+      r: Math.min(bulbW * 0.42, bulbH * 0.3),
+    };
+  }
+
+  function holePath(target: CanvasRenderingContext2D, hole: Hole) {
+    if (typeof target.roundRect === "function") {
+      target.roundRect(hole.x, hole.y, hole.w, hole.h, [
+        hole.r,
+        hole.r,
+        hole.r * 0.35,
+        hole.r * 0.35,
+      ]);
+    } else {
+      target.rect(hole.x, hole.y, hole.w, hole.h);
+    }
+  }
 
   /**
    * Everything inside the glass: the envelope, the pool of light the discharge
@@ -380,12 +491,21 @@ function setup(
     ctx.fill();
   }
 
-  /** The neon separator between the pairs, on its own little bulb. */
-  function colon(x: number, w: number, h: number, on: boolean) {
+  /**
+   * The neon separator between the pairs.
+   *
+   * Lit, and staying lit. Blinking it is the reflex — every digital clock does
+   * — but it is a reflex from seven-segment displays, where the blink was
+   * doing a job: telling you the thing was still running. A nixie has a second
+   * hand made of two more tubes, or it does not, and either way there is
+   * nothing left for a blink to say. On a wall it is just a thing twitching at
+   * you once a second.
+   */
+  function colon(x: number, w: number, h: number) {
     const S = settings();
     const cx = x + w / 2;
     const r = Math.max(1.5, Math.min(w, h) * 0.035);
-    const dim = on ? clamp(1 - surge * 0.3 * S.nixieFlicker, 0, 1) : 0.06;
+    const dim = clamp(1 - surge * 0.3 * S.nixieFlicker, 0, 1);
 
     for (const at of [0.38, 0.56]) {
       const cy = h * at;
@@ -404,7 +524,7 @@ function setup(
       ctx.fill();
       ctx.restore();
 
-      if (on && gctx) {
+      if (gctx) {
         gctx.save();
         gctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         gctx.globalCompositeOperation = "lighter";
@@ -473,10 +593,8 @@ function setup(
       }
     });
 
-    const blink = now.getMilliseconds() < 500;
-
     for (const slot of slots) tubeBody(slot);
-    for (const cx of colons) colon(cx, gapW, H, blink);
+    for (const cx of colons) colon(cx, gapW, H);
 
     // --- the discharge, spilling out of the tubes ---------------------------
     // Neon wraps its cathode rather than sitting on it, so this is not a
@@ -501,6 +619,78 @@ function setup(
 
     // The mesh and the glass are in front of all of that.
     for (const slot of slots) tubeFront(slot);
+
+    // --- the fascia ---------------------------------------------------------
+    //
+    // Drawn over the finished tubes rather than behind them, which is the only
+    // way round that reads as mounting. A panel painted first and tubes drawn
+    // on top is a picture of tubes lying on a panel; a panel drawn last, with
+    // holes in it, is a panel with tubes behind it. The difference costs one
+    // even-odd fill.
+    const holes: Hole[] = slots.map(aperture);
+    for (const cx of colons) {
+      const r = Math.max(2, Math.min(gapW, th) * 0.05);
+      for (const at of [0.38, 0.56]) {
+        holes.push({
+          x: cx + gapW / 2 - r * 1.7,
+          y: H * at - r * 1.7,
+          w: r * 3.4,
+          h: r * 3.4,
+          r: r * 1.7,
+        });
+      }
+    }
+
+    if (fctx) {
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(0, 0, W, H);
+      for (const hole of holes) holePath(ctx, hole);
+      ctx.clip("evenodd");
+      ctx.drawImage(face, 0, 0, W, H);
+      ctx.restore();
+    }
+
+    // The edge of each hole: the panel has thickness, so the top of the cut is
+    // in shadow and the bottom catches whatever the tube is throwing at it.
+    for (const hole of holes) {
+      const lip = ctx.createLinearGradient(0, hole.y, 0, hole.y + hole.h);
+      lip.addColorStop(0, "rgba(0,0,0,0.75)");
+      lip.addColorStop(0.45, "rgba(0,0,0,0.25)");
+      lip.addColorStop(1, "rgba(255,220,180,0.14)");
+      ctx.strokeStyle = lip;
+      ctx.lineWidth = Math.max(1, unit * 0.018);
+      ctx.beginPath();
+      holePath(ctx, hole);
+      ctx.stroke();
+    }
+
+    // And the light the tubes throw back onto the panel around them. A lit tube
+    // in a hole spills onto the fascia; without it the panel is a flat colour
+    // with cutouts and the tubes are stickers in the cutouts.
+    if (S.nixieGlow > 0) {
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      slots.forEach((slot, i) => {
+        if (slot.lit === null) return;
+        const hole = holes[i];
+        const cx = hole.x + hole.w / 2;
+        const cy = hole.y + hole.h / 2;
+        const spill = ctx.createRadialGradient(
+          cx,
+          cy,
+          hole.h * 0.4,
+          cx,
+          cy,
+          hole.h * 1.05,
+        );
+        spill.addColorStop(0, `rgba(${NEON},${0.14 * clamp(S.nixieGlow, 0, 1.6)})`);
+        spill.addColorStop(1, `rgba(${NEON},0)`);
+        ctx.fillStyle = spill;
+        ctx.fillRect(cx - hole.h * 1.1, cy - hole.h * 1.1, hole.h * 2.2, hole.h * 2.2);
+      });
+      ctx.restore();
+    }
 
     // The faint blue-violet cast off the mercury some tubes carry, which is
     // what stops the whole picture being one hue.
@@ -531,7 +721,15 @@ function setup(
   const ro = new ResizeObserver(() => build());
   ro.observe(host);
 
-  const unsubscribe = subscribeSettings(() => {});
+  // Everything else here is read on the frame that uses it. The fascia is not:
+  // it is a canvas of static grain, painted once.
+  let panel = settings().nixiePanel;
+  const unsubscribe = subscribeSettings(() => {
+    const next = settings().nixiePanel;
+    if (next === panel) return;
+    panel = next;
+    fascia();
+  });
 
   function onVisibility() {
     if (document.hidden) {

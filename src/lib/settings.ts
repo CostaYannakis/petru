@@ -30,6 +30,9 @@ export const METER_PANELS = ["vanta", "brushed"] as const;
  * filters. `ramp` is the odd one out: it takes the panel's own palette instead,
  * so the meter matches whatever the other two screens are wearing.
  */
+/** What the tubes are mounted behind. */
+export const NIXIE_PANELS = ["vanta", "brushed", "walnut"] as const;
+
 export const METER_LAMPS = [
   "warm",
   "amber",
@@ -123,6 +126,7 @@ export type Settings = {
   meterLamp: (typeof METER_LAMPS)[number];
 
   // --- nixie clock ---
+  nixiePanel: (typeof NIXIE_PANELS)[number];
   nixieSeconds: boolean;
   nixie24: boolean;
   nixieGhost: number;
@@ -188,6 +192,7 @@ export const DEFAULTS: Settings = {
   meterPanel: "vanta",
   meterLamp: "warm",
 
+  nixiePanel: "brushed",
   nixieSeconds: true,
   nixie24: true,
   nixieGhost: 0.5,
@@ -240,7 +245,12 @@ type KeysOfType<T> = {
 
 export type NumberKey = KeysOfType<number>;
 export type BooleanKey = KeysOfType<boolean>;
-export type ChoiceKey = "theme" | "screen" | "meterPanel" | "meterLamp";
+export type ChoiceKey =
+  | "theme"
+  | "screen"
+  | "meterPanel"
+  | "meterLamp"
+  | "nixiePanel";
 
 export const GROUPS: Group[] = [
   {
@@ -710,6 +720,13 @@ export const GROUPS: Group[] = [
       "Cold-cathode tubes, which are not displays so much as ten numerals of bent wire stacked one behind another in a neon envelope. Only one is lit; the other nine are still in there, and seeing them is the whole thing. Digits in front of the lit one occlude it, which is why a nixie has depth that a printed number never does.",
     fields: [
       {
+        kind: "choice",
+        key: "nixiePanel",
+        label: "Fascia",
+        options: NIXIE_PANELS,
+        note: "The tubes are mounted behind this, not sitting on it — the panel overlaps their rims, so what you see through each aperture is glass. walnut is what most of these actually lived in.",
+      },
+      {
         kind: "toggle",
         key: "nixieSeconds",
         label: "Seconds",
@@ -807,6 +824,10 @@ export function cleanSettings(input: unknown): Partial<Settings> {
       }
     } else if (key === "meterPanel") {
       if (typeof value === "string" && (METER_PANELS as readonly string[]).includes(value)) {
+        out[key] = value;
+      }
+    } else if (key === "nixiePanel") {
+      if (typeof value === "string" && (NIXIE_PANELS as readonly string[]).includes(value)) {
         out[key] = value;
       }
     } else if (key === "meterLamp") {
