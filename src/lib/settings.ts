@@ -6,12 +6,13 @@ import { DEFAULT_THEME, THEME_NAMES, type ThemeName } from "@/lib/palette";
  * `panel` reports — every bar's height is a reading. `lava` is the opposite
  * instrument, where sound heats a fluid and physics does the rest. `meter` is a
  * needle with mass and a spring, which is a third thing again: it does not show
- * you the level, it shows you the level arriving.
+ * you the level, it shows you the level arriving. `nixie` is not a meter at
+ * all — it tells the time, and only lets the room touch its brightness.
  *
  * They share the microphone, the ramp and the tap-anywhere, and know nothing
  * about each other.
  */
-export const SCREENS = ["panel", "lava", "meter"] as const;
+export const SCREENS = ["panel", "lava", "meter", "nixie"] as const;
 export type ScreenName = (typeof SCREENS)[number];
 
 /**
@@ -121,6 +122,13 @@ export type Settings = {
   meterPanel: (typeof METER_PANELS)[number];
   meterLamp: (typeof METER_LAMPS)[number];
 
+  // --- nixie clock ---
+  nixieSeconds: boolean;
+  nixie24: boolean;
+  nixieGhost: number;
+  nixieGlow: number;
+  nixieFlicker: number;
+
   // --- palette ---
   theme: ThemeName;
 };
@@ -179,6 +187,12 @@ export const DEFAULTS: Settings = {
   meterPeak: 1.4,
   meterPanel: "vanta",
   meterLamp: "warm",
+
+  nixieSeconds: true,
+  nixie24: true,
+  nixieGhost: 0.5,
+  nixieGlow: 0.8,
+  nixieFlicker: 0.35,
 
   theme: DEFAULT_THEME,
 };
@@ -687,6 +701,52 @@ export const GROUPS: Group[] = [
         max: 4,
         step: 0.1,
         note: "Seconds the overload lamp stays lit after the needle passes 0. At 0 there is no lamp.",
+      },
+    ],
+  },
+  {
+    title: "Nixie clock",
+    blurb:
+      "Cold-cathode tubes, which are not displays so much as ten numerals of bent wire stacked one behind another in a neon envelope. Only one is lit; the other nine are still in there, and seeing them is the whole thing. Digits in front of the lit one occlude it, which is why a nixie has depth that a printed number never does.",
+    fields: [
+      {
+        kind: "toggle",
+        key: "nixieSeconds",
+        label: "Seconds",
+        note: "Six tubes rather than four. Off is the calmer clock; on is the one you cannot stop watching.",
+      },
+      {
+        kind: "toggle",
+        key: "nixie24",
+        label: "24 hour",
+        note: "Off runs 12 hour and blanks the leading tube rather than showing a zero — and a blanked tube still shows its ghosts, because the cathodes do not go anywhere when they are unlit.",
+      },
+      {
+        kind: "number",
+        key: "nixieGhost",
+        label: "Ghost numerals",
+        min: 0,
+        max: 1,
+        step: 0.02,
+        note: "How visible the nine unlit cathodes are. At 0 it is a number on a screen; the whole character of the tube is in the first quarter of this knob.",
+      },
+      {
+        kind: "number",
+        key: "nixieGlow",
+        label: "Glow",
+        min: 0,
+        max: 1.6,
+        step: 0.02,
+        note: "How far the discharge bleeds off the wire. Neon wraps the cathode rather than sitting on it, so a little is the point and a lot is a smear.",
+      },
+      {
+        kind: "number",
+        key: "nixieFlicker",
+        label: "Room",
+        min: 0,
+        max: 1,
+        step: 0.02,
+        note: "How much the room reaches the tubes. It only moves the brightness — the supply sagging under a loud passage — because a clock that danced would have stopped being a clock. At 0 it ignores the microphone entirely.",
       },
     ],
   },

@@ -505,6 +505,48 @@ palette instead. Every one of them sits a long way toward white, because a
 saturated fill behind a dial reads as a coloured gel taped over the glass and
 never as a lit face.
 
+## The nixie clock
+
+A nixie isn't a display. It's ten numerals of bent wire stacked one behind
+another inside a neon envelope, and a supply that lights exactly one of them by
+making the gas around it discharge. Everything that makes one look right follows
+from that sentence.
+
+**The numerals are stroked, not filled**, because they're wire. A filled digit is
+the single thing that gives a fake nixie away, and it's the easy mistake to make
+because every font is filled by default. Round joins and caps, since wire has no
+corners.
+
+**The nine unlit cathodes are still in there.** You can see them — dark wire
+crowding the lit one — and crucially some of them sit *in front*, so they cross
+the discharge and interrupt it. That's where a tube's depth comes from and where
+a number on a screen has none. The stacking order is the real one, front to back,
+because it decides which ghosts do the crossing. They're drawn as dark
+silhouettes rather than dim orange: a cathode in front of a discharge is a
+shadow, and painting it faintly lit is the tempting mistake that flattens the
+whole tube.
+
+**The glow wraps the wire rather than sitting on it.** Neon discharges into the
+gas *around* the cathode, so the bloom isn't a finishing touch — it's most of
+what the eye reads. Every lit numeral goes to one offscreen surface and comes
+back in two blurred passes: a tight one for the wire and a wide one so the
+envelope itself glows as an object.
+
+Also in there: the anode mesh, which is what stops the numerals looking painted
+on the front of the glass; two glass reflections, because a cylinder gives you a
+bright one on the lit side and a weaker one wrapping the far edge; and a faint
+mercury cast, which is what keeps the picture from being a single hue.
+
+In 12-hour mode the leading tube is **blanked, not removed** — the cathodes don't
+go anywhere when they're unlit, so its ghosts stay. That's what a real clock
+looks like at nine o'clock.
+
+It's the one screen that doesn't take its colour from the ramp, and can't: the
+colour of a nixie is the emission line of the gas inside it. A blue nixie is not
+a nixie. It's also the one that mostly ignores the microphone — the room is
+allowed to move the brightness, the supply sagging under a loud passage, and
+nothing else. A clock that danced would have stopped being a clock.
+
 ## Tuning
 
 Every value the panel is tuned by lives in `src/lib/settings.ts` — the numbers

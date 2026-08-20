@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import LavaLamp from "@/components/LavaLamp";
 import LedPanel from "@/components/LedPanel";
+import NixieClock from "@/components/NixieClock";
 import VoltageMeter from "@/components/VoltageMeter";
 import { startMic, type MicSource } from "@/lib/mic";
 import { useSettings } from "@/lib/settings-store";
@@ -67,6 +68,8 @@ export default function Visualiser() {
         <LavaLamp micRef={micRef} theme={theme} />
       ) : settings.screen === "meter" ? (
         <VoltageMeter micRef={micRef} theme={theme} />
+      ) : settings.screen === "nixie" ? (
+        <NixieClock micRef={micRef} theme={theme} />
       ) : (
         <LedPanel micRef={micRef} theme={theme} />
       )}
