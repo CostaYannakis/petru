@@ -530,12 +530,35 @@ whole tube.
 gas *around* the cathode, so the bloom isn't a finishing touch — it's most of
 what the eye reads. Every lit numeral goes to one offscreen surface and comes
 back in two blurred passes: a tight one for the wire and a wide one so the
-envelope itself glows as an object.
+envelope itself glows as an object and throws light onto its neighbours.
 
-Also in there: the anode mesh, which is what stops the numerals looking painted
-on the front of the glass; two glass reflections, because a cylinder gives you a
-bright one on the lit side and a weaker one wrapping the far edge; and a faint
-mercury cast, which is what keeps the picture from being a single hue.
+**The wire is dark inside its own glow.** This is the one that had to be got
+wrong before it could be seen. The cathode doesn't emit — it's metal. What glows
+is the gas around it, so the hottest thing is a sheath hugging the surface, and
+the surface itself is a shadow down the middle of it. The first version painted
+the brightest colour straight onto the wire, which is exactly backwards.
+
+**Light adds.** The discharge composites with `lighter`, not alpha, so the places
+a numeral crosses itself come out brighter for it. Alpha can't do that: it
+replaces what's underneath instead of summing with it.
+
+**And the glow has to light something.** A plasma cloud inside a glass box lights
+the box — there's a pool on the envelope's far wall now, and the cathodes behind
+the lit one pick it up rather than being invisible. Without it the numeral glows
+into a vacuum and the tube stays as black as the gap between tubes, which is the
+tell that there's no tube there at all.
+
+**The mesh is in front, so it's drawn last.** The anode screen sits between the
+cathodes and the glass — you look at the numeral *through* it — so its fine dark
+lines have to cut across the lit glyph. Drawing it before the glow, which is what
+the first version did, means the glow washes it away exactly where it was meant
+to read. That's why the tube is drawn in two passes with the discharge composited
+in between: everything inside the glass, then the light, then everything between
+the light and your eye.
+
+Also in there: two glass reflections, because a cylinder gives you a bright one
+on the lit side and a weaker one wrapping the far edge; and a faint mercury cast,
+which keeps the picture from being a single hue.
 
 In 12-hour mode the leading tube is **blanked, not removed** — the cathodes don't
 go anywhere when they're unlit, so its ghosts stay. That's what a real clock

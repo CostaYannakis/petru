@@ -146,8 +146,17 @@ function setup(
     target.strokeText(String(d), cx, cy);
   }
 
-  /** One tube: envelope, the whole stack of cathodes, and the mesh in front. */
-  function tube(x: number, y: number, w: number, h: number, lit: number | null) {
+  type Slot = { x: number; y: number; w: number; h: number; lit: number | null };
+
+  /**
+   * Everything inside the glass: the envelope, the pool of light the discharge
+   * throws onto its far wall, and the whole stack of cathodes.
+   *
+   * Note what is *not* here. The mesh and the glass sit in front of the
+   * discharge, so they cannot be drawn until after it has been composited —
+   * that is the entire reason this is split in two.
+   */
+  function tubeBody({ x, y, w, h, lit }: Slot) {
     const S = settings();
 
     const cx = x + w / 2;
@@ -155,7 +164,6 @@ function setup(
     const size = Math.min(h * 0.52, w * 0.95);
     const wire = Math.max(1, size * 0.062);
 
-    // --- the envelope ------------------------------------------------------
     const bulbW = w * 0.86;
     const bulbH = h * 0.86;
     const bx = cx - bulbW / 2;
@@ -170,8 +178,6 @@ function setup(
       ctx.rect(bx, by, bulbW, bulbH);
     }
 
-    // Glass over near-black. The inside of a tube is dark, and the little that
-    // is there is the far wall catching the discharge.
     const inside = ctx.createLinearGradient(bx, by, bx + bulbW, by + bulbH);
     inside.addColorStop(0, "#0b0907");
     inside.addColorStop(0.5, "#141010");
@@ -180,94 +186,138 @@ function setup(
     ctx.fill();
     ctx.clip();
 
-    // --- the cathode stack -------------------------------------------------
-    // Drawn back to front. The ones ahead of the lit numeral are drawn after it
-    // and therefore cross it, which is the depth cue the whole tube rests on.
-    const depth = lit === null ? -1 : STACK.indexOf(lit);
+    const dim = clamp(
+      1 - surge * 0.35 * S.nixieFlicker + level * 0.12 * S.nixieFlicker,
+      0,
+      1,
+    );
 
+    // The discharge is a light source sitting inside a glass box, so the box is
+    // lit. Without this the numeral glows into a vacuum and the tube around it
+    // stays as black as the gap between tubes — which is the tell that there is
+    // no tube there at all.
+    if (lit !== null && S.nixieGlow > 0) {
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      const pool = ctx.createRadialGradient(cx, cy, 0, cx, cy, size * 1.1);
+      pool.addColorStop(0, `rgba(${NEON},${0.1 * dim})`);
+      pool.addColorStop(0.5, `rgba(${NEON},${0.045 * dim})`);
+      pool.addColorStop(1, `rgba(${NEON},0)`);
+      ctx.fillStyle = pool;
+      ctx.fillRect(bx, by, bulbW, bulbH);
+      ctx.restore();
+    }
+
+    const depth = lit === null ? -1 : STACK.indexOf(lit);
     const ghost = S.nixieGhost;
+
+    // Cathodes behind the lit one. They are metal a few millimetres from a
+    // light source, so they pick it up rather than being invisible.
     for (let i = STACK.length - 1; i >= 0; i--) {
       const d = STACK[i];
       if (d === lit) continue;
+      if (depth >= 0 && i <= depth) continue;
 
-      // Further back is smaller and dimmer, which is all the perspective a
-      // stack a few millimetres deep actually gives you.
-      const behind = depth < 0 || i > depth;
       const k = i / (STACK.length - 1);
-      const scale = 1 - k * 0.05;
-      const fade = (behind ? 0.16 : 0.26) * ghost * (1 - k * 0.35);
-
-      if (behind) {
-        numeral(
-          ctx,
-          d,
-          cx,
-          cy + k * size * 0.012,
-          size * scale,
-          `rgba(${NEON},${fade * 0.5})`,
-          wire * 0.8,
-        );
-      }
+      numeral(
+        ctx,
+        d,
+        cx,
+        cy + k * size * 0.012,
+        size * (1 - k * 0.05),
+        `rgba(${NEON},${0.08 * ghost * (1 - k * 0.35)})`,
+        wire * 0.8,
+      );
     }
 
-    // --- the lit cathode ---------------------------------------------------
+    // --- the discharge -----------------------------------------------------
     if (lit !== null) {
-      const dim =
-        1 - surge * 0.35 * S.nixieFlicker + level * 0.12 * S.nixieFlicker;
+      // Added, not painted over. Light sums, and the places where a numeral
+      // crosses itself are brighter for it — which alpha compositing cannot
+      // do, since it replaces what is underneath instead of adding to it.
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
 
-      // The core, sharp, on the scene; and the same stroke on the glow surface,
-      // which is blurred back over everything in one pass at the end.
-      numeral(ctx, lit, cx, cy, size, `rgba(${NEON_CORE},${clamp(dim, 0, 1)})`, wire * 0.62);
-      numeral(ctx, lit, cx, cy, size, `rgba(${NEON},${clamp(dim * 0.85, 0, 1)})`, wire);
+      // Three coats, widest and faintest first: the plasma is densest against
+      // the metal and thins outward into the gas.
+      numeral(ctx, lit, cx, cy, size, `rgba(${NEON},${0.18 * dim})`, wire * 2.4);
+      numeral(ctx, lit, cx, cy, size, `rgba(${NEON},${0.5 * dim})`, wire * 1.35);
+      numeral(ctx, lit, cx, cy, size, `rgba(${NEON_CORE},${0.55 * dim})`, wire * 0.8);
+      ctx.restore();
 
       if (gctx) {
         gctx.save();
         gctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-        numeral(gctx, lit, cx, cy, size, `rgba(${NEON},${clamp(dim, 0, 1)})`, wire);
+        gctx.globalCompositeOperation = "lighter";
+        numeral(gctx, lit, cx, cy, size, `rgba(${NEON},${dim})`, wire * 1.2);
         gctx.restore();
+      }
+
+      // And the cathode itself, dark down the middle of its own glow.
+      //
+      // This is the part that had to be got wrong before it could be seen: the
+      // wire does not emit. It is metal. What glows is the gas around it, so
+      // the hottest thing is a sheath hugging the surface and the surface is a
+      // shadow in the middle of it. Skipped when the stroke is too fine to hold
+      // a core, because below a pixel it only dims the numeral.
+      if (wire * 0.3 > 1.1) {
+        numeral(ctx, lit, cx, cy, size, `rgba(14,7,3,${0.4 * dim})`, wire * 0.3);
       }
     }
 
-    // Ghosts in front, drawn over the glow so they interrupt it.
+    // Cathodes in front. Silhouettes, because they are between you and the
+    // discharge — but metal catches an edge off a source that close, so a
+    // little comes back rather than none.
     for (let i = 0; i < STACK.length; i++) {
       const d = STACK[i];
       if (d === lit) continue;
       if (depth >= 0 && i > depth) continue;
 
       const k = i / (STACK.length - 1);
-      const scale = 1 - k * 0.05;
+      const gy = cy + k * size * 0.012;
+      const gs = size * (1 - k * 0.05);
 
-      // Dark wire, not dim light: a cathode in front of the discharge is a
-      // silhouette. Drawing these as faint orange is the tempting mistake and
-      // it flattens the tube completely.
-      numeral(
-        ctx,
-        d,
-        cx,
-        cy + k * size * 0.012,
-        size * scale,
-        `rgba(10,6,4,${0.5 * ghost})`,
-        wire * 0.85,
-      );
-      numeral(
-        ctx,
-        d,
-        cx,
-        cy + k * size * 0.012,
-        size * scale,
-        `rgba(${NEON},${0.1 * ghost})`,
-        wire * 0.4,
-      );
+      numeral(ctx, d, cx, gy, gs, `rgba(10,6,4,${0.55 * ghost})`, wire * 0.85);
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      numeral(ctx, d, cx, gy, gs, `rgba(${NEON},${0.13 * ghost * dim})`, wire * 0.3);
+      ctx.restore();
     }
 
-    // --- the anode mesh ----------------------------------------------------
-    // A fine screen sits between the cathodes and the glass on a real tube, and
-    // it is the detail that stops the numerals looking like they are painted on
-    // the front of the envelope.
-    ctx.globalAlpha = 0.13;
-    ctx.strokeStyle = "#c9b79a";
-    ctx.lineWidth = Math.max(0.4, size * 0.008);
+    ctx.restore();
+  }
+
+  /**
+   * Everything between the discharge and the eye: the anode mesh, the glass,
+   * and the base.
+   *
+   * Drawn after the glow has been composited, which is the whole point. The
+   * mesh is a screen *in front* of the cathodes — you look at the numeral
+   * through it — so its fine dark lines have to cut across the lit glyph. Draw
+   * it before the glow and the glow washes it away exactly where it was meant
+   * to read, which is what the first version did.
+   */
+  function tubeFront({ x, y, w, h }: Slot) {
+    const cx = x + w / 2;
+    const size = Math.min(h * 0.52, w * 0.95);
+
+    const bulbW = w * 0.86;
+    const bulbH = h * 0.86;
+    const bx = cx - bulbW / 2;
+    const by = y + h * 0.03;
+    const radius = Math.min(bulbW * 0.42, bulbH * 0.3);
+
+    ctx.save();
+    ctx.beginPath();
+    if (typeof ctx.roundRect === "function") {
+      ctx.roundRect(bx, by, bulbW, bulbH, [radius, radius, radius * 0.3, radius * 0.3]);
+    } else {
+      ctx.rect(bx, by, bulbW, bulbH);
+    }
+    ctx.clip();
+
     const step = Math.max(3, size * 0.075);
+    ctx.lineWidth = Math.max(0.4, size * 0.008);
     ctx.beginPath();
     for (let gx = bx; gx < bx + bulbW; gx += step) {
       ctx.moveTo(gx, by);
@@ -277,12 +327,22 @@ function setup(
       ctx.moveTo(bx, gy);
       ctx.lineTo(bx + bulbW, gy);
     }
+
+    // The wire occludes...
+    ctx.globalAlpha = 0.3;
+    ctx.strokeStyle = "#000";
     ctx.stroke();
+
+    // ...and catches the light coming through it.
+    ctx.globalAlpha = 0.1;
+    ctx.globalCompositeOperation = "lighter";
+    ctx.strokeStyle = "#8a6a45";
+    ctx.stroke();
+    ctx.globalCompositeOperation = "source-over";
     ctx.globalAlpha = 1;
 
-    // --- the glass ---------------------------------------------------------
-    // Two reflections, because a cylinder gives you a bright one on the side
-    // the light is on and a weaker one where it wraps around the far edge.
+    // Two reflections, because a cylinder gives a bright one where the light is
+    // and a weaker one wrapping the far edge.
     const sheen = ctx.createLinearGradient(bx, by, bx + bulbW, by);
     sheen.addColorStop(0, "rgba(255,255,255,0)");
     sheen.addColorStop(0.1, "rgba(255,255,255,0.16)");
@@ -295,7 +355,6 @@ function setup(
 
     ctx.restore();
 
-    // Rim.
     ctx.strokeStyle = "rgba(190,175,150,0.22)";
     ctx.lineWidth = Math.max(0.7, size * 0.014);
     ctx.beginPath();
@@ -306,7 +365,6 @@ function setup(
     }
     ctx.stroke();
 
-    // --- the base ----------------------------------------------------------
     const baseH = h * 0.1;
     const baseY = by + bulbH - baseH * 0.2;
     const base = ctx.createLinearGradient(0, baseY, 0, baseY + baseH);
@@ -327,21 +385,32 @@ function setup(
     const S = settings();
     const cx = x + w / 2;
     const r = Math.max(1.5, Math.min(w, h) * 0.035);
-    const dim = on ? 1 - surge * 0.3 * S.nixieFlicker : 0.06;
+    const dim = on ? clamp(1 - surge * 0.3 * S.nixieFlicker, 0, 1) : 0.06;
 
     for (const at of [0.38, 0.56]) {
       const cy = h * at;
+
+      ctx.save();
+      ctx.globalCompositeOperation = "lighter";
+      const halo = ctx.createRadialGradient(cx, cy, 0, cx, cy, r * 3);
+      halo.addColorStop(0, `rgba(${NEON},${0.5 * dim})`);
+      halo.addColorStop(1, `rgba(${NEON},0)`);
+      ctx.fillStyle = halo;
+      ctx.fillRect(cx - r * 3, cy - r * 3, r * 6, r * 6);
+
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
-      ctx.fillStyle = `rgba(${NEON_CORE},${clamp(dim, 0, 1)})`;
+      ctx.fillStyle = `rgba(${NEON_CORE},${dim})`;
       ctx.fill();
+      ctx.restore();
 
       if (on && gctx) {
         gctx.save();
         gctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        gctx.globalCompositeOperation = "lighter";
         gctx.beginPath();
         gctx.arc(cx, cy, r, 0, Math.PI * 2);
-        gctx.fillStyle = `rgba(${NEON},${clamp(dim, 0, 1)})`;
+        gctx.fillStyle = `rgba(${NEON},${dim})`;
         gctx.fill();
         gctx.restore();
       }
@@ -353,9 +422,6 @@ function setup(
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.globalCompositeOperation = "source-over";
-
-    // Nixies live in the dark, and a dark room is where the glow is worth
-    // anything at all.
     ctx.fillStyle = "#050403";
     ctx.fillRect(0, 0, W, H);
 
@@ -374,8 +440,8 @@ function setup(
     }
 
     // A blanked leading tube is unlit, not absent. The cathodes do not go
-    // anywhere, so the ghosts are still there — which is exactly what a real
-    // clock looks like at nine o'clock.
+    // anywhere, so its ghosts are still there — which is what a real clock
+    // looks like at nine o'clock.
     const digits: (number | null)[] = [
       blank ? null : Math.floor(hours / 10),
       hours % 10,
@@ -386,52 +452,58 @@ function setup(
       digits.push(Math.floor(now.getSeconds() / 10), now.getSeconds() % 10);
     }
 
-    // Tubes get a full slot each, separators a narrow one.
     const gaps = S.nixieSeconds ? 2 : 1;
     const units = digits.length + gaps * 0.45;
     const unit = Math.min(W / units, H * 0.62);
     const tubeW = unit;
     const gapW = unit * 0.45;
     const total = digits.length * tubeW + gaps * gapW;
-
-    let x = (W - total) / 2;
-    const y = (H - Math.min(H * 0.86, unit * 1.7)) / 2;
     const th = Math.min(H * 0.86, unit * 1.7);
+    const y = (H - th) / 2;
 
-    const blink = now.getMilliseconds() < 500;
-
+    const slots: Slot[] = [];
+    const colons: number[] = [];
+    let x = (W - total) / 2;
     digits.forEach((d, i) => {
-      tube(x, y, tubeW, th, d);
+      slots.push({ x, y, w: tubeW, h: th, lit: d });
       x += tubeW;
       if (i === 1 || (i === 3 && S.nixieSeconds)) {
-        colon(x, gapW, H, blink);
+        colons.push(x);
         x += gapW;
       }
     });
 
-    // --- the discharge -----------------------------------------------------
-    // One blur for every lit cathode in the scene. Neon wraps its wire rather
-    // than sitting on it, so this pass is not a finishing touch — it is most of
-    // what the eye reads as a nixie.
+    const blink = now.getMilliseconds() < 500;
+
+    for (const slot of slots) tubeBody(slot);
+    for (const cx of colons) colon(cx, gapW, H, blink);
+
+    // --- the discharge, spilling out of the tubes ---------------------------
+    // Neon wraps its cathode rather than sitting on it, so this is not a
+    // finishing pass — it is most of what the eye reads as a nixie. Two widths:
+    // one for the gas immediately around the wire, one wide enough that the
+    // envelope glows as an object and throws light onto its neighbours.
     if (gctx && canBlur && S.nixieGlow > 0) {
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
 
-      ctx.filter = `blur(${Math.max(3, unit * 0.06)}px)`;
-      ctx.globalAlpha = clamp(S.nixieGlow, 0, 1.6) * 0.75;
+      ctx.filter = `blur(${Math.max(3, unit * 0.05)}px)`;
+      ctx.globalAlpha = clamp(S.nixieGlow, 0, 1.6) * 0.6;
       ctx.drawImage(glow, 0, 0, W, H);
 
-      // A second, wider pass: the gas lights the whole envelope faintly, and
-      // the tube glows as an object rather than the numeral glowing alone.
-      ctx.filter = `blur(${Math.max(10, unit * 0.22)}px)`;
-      ctx.globalAlpha = clamp(S.nixieGlow, 0, 1.6) * 0.35;
+      ctx.filter = `blur(${Math.max(10, unit * 0.24)}px)`;
+      ctx.globalAlpha = clamp(S.nixieGlow, 0, 1.6) * 0.3;
       ctx.drawImage(glow, 0, 0, W, H);
 
       ctx.filter = "none";
       ctx.restore();
     }
 
-    // The mercury cast, which is what stops the whole picture being one hue.
+    // The mesh and the glass are in front of all of that.
+    for (const slot of slots) tubeFront(slot);
+
+    // The faint blue-violet cast off the mercury some tubes carry, which is
+    // what stops the whole picture being one hue.
     if (S.nixieGlow > 0) {
       ctx.save();
       ctx.globalCompositeOperation = "lighter";
@@ -444,12 +516,6 @@ function setup(
     ctx.globalCompositeOperation = "source-over";
   }
 
-  /**
-   * No clock of its own to advance, and so no `dt` and nothing to integrate:
-   * the only thing moving here is the time, and the time is read straight off
-   * the system. `prefers-reduced-motion` has nothing to slow either — a clock
-   * that ran slow would simply be wrong.
-   */
   function frame() {
     if (!running) return;
 
